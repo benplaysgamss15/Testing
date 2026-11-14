@@ -1,0 +1,1320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Skullcrawler 360° 3D Module</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #f1f4f8; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #1c2229; user-select: none; }
+  #canvas-wrap { position: fixed; inset: 0; touch-action: none; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+  .hud-top { position: fixed; top: 12px; left: 12px; z-index: 10; pointer-events: none; }
+  .title-card {
+    pointer-events: auto; background: rgba(255,255,255,0.88); backdrop-filter: blur(12px);
+    border: 1px solid rgba(28,34,41,0.1); border-radius: 12px; padding: 10px 14px;
+    box-shadow: 0 6px 24px rgba(15,23,42,0.08); max-width: 310px;
+  }
+  .badge { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: #4f5d6b; background: #e8edf2; padding: 2px 7px; border-radius: 999px; margin-bottom: 4px; }
+  .title-card h1 { font-size: 16px; font-weight: 750; color: #11161c; line-height: 1.2; }
+  .title-card p { font-size: 11.5px; color: #52606e; margin-top: 3px; line-height: 1.35; }
+
+  .hud-right { position: fixed; top: 12px; right: 12px; z-index: 10; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .cam-panel {
+    display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end;
+    background: rgba(255,255,255,0.88); backdrop-filter: blur(12px);
+    border: 1px solid rgba(28,34,41,0.1); border-radius: 12px; padding: 6px;
+    box-shadow: 0 6px 22px rgba(15,23,42,0.07);
+  }
+  .hud-bottom {
+    position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 10;
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px;
+    background: rgba(255,255,255,0.92); backdrop-filter: blur(14px);
+    border: 1px solid rgba(28,34,41,0.1); border-radius: 15px; padding: 8px 10px;
+    box-shadow: 0 10px 30px rgba(15,23,42,0.1); max-width: calc(100vw - 16px);
+  }
+  .btn-group { display: flex; align-items: center; gap: 4px; padding-right: 6px; border-right: 1px solid rgba(28,34,41,0.1); }
+  .btn-group:last-child { border-right: none; padding-right: 0; }
+  button {
+    appearance: none; border: 1px solid rgba(28,34,41,0.13); background: #fff; color: #242c35;
+    font-size: 12px; font-weight: 600; padding: 7px 11px; border-radius: 9px; cursor: pointer;
+    transition: all 0.14s ease; white-space: nowrap;
+  }
+  button:hover { background: #f0f4f8; }
+  button.active { background: #171d24; color: #fff; border-color: #171d24; }
+  button.scream-btn.active { background: #a11b22; border-color: #a11b22; }
+  .cam-panel button { padding: 5px 8px; font-size: 11px; border-radius: 7px; }
+  .slider-wrap { display: flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; color: #44515e; padding: 0 2px; }
+  input[type="range"] { width: 72px; accent-color: #171d24; cursor: pointer; }
+  .info-drawer {
+    background: rgba(255,255,255,0.94); backdrop-filter: blur(12px);
+    border: 1px solid rgba(28,34,41,0.1); border-radius: 12px; padding: 10px 12px;
+    box-shadow: 0 6px 22px rgba(15,23,42,0.09); width: min(280px, calc(100vw - 24px));
+    font-size: 11.5px; line-height: 1.4; color: #3d4854; display: none;
+  }
+  .info-drawer.open { display: block; }
+  .info-drawer h3 { font-size: 12.5px; color: #11161c; margin-bottom: 4px; }
+  .info-drawer ul { padding-left: 15px; }
+  .info-drawer li { margin-bottom: 3px; }
+
+  @media (max-width: 760px) {
+    .hud-top { top: 8px; left: 8px; right: 8px; }
+    .title-card { max-width: 100%; padding: 7px 11px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .title-card p { display: none; }
+    .title-card h1 { font-size: 14px; }
+    .badge { margin-bottom: 0; font-size: 9px; }
+    .hud-right { top: 52px; left: 8px; right: 8px; align-items: flex-start; }
+    .cam-panel { width: 100%; justify-content: center; }
+    .hud-bottom { bottom: 10px; padding: 7px 8px; gap: 5px; }
+    .btn-group { border-right: none; padding-right: 0; }
+    button { padding: 6px 9px; font-size: 11.5px; }
+  }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="canvas-wrap"></div>
+
+<div class="hud-top">
+  <div class="title-card">
+    <span class="badge">Cranium reptant</span>
+    <h1>Skullcrawler 360° 3D</h1>
+    <p>1-finger drag to orbit 360° • Pinch/scroll to zoom • 2-finger drag to pan.</p>
+  </div>
+</div>
+
+<div class="hud-right">
+  <div class="cam-panel">
+    <button data-cam="hero" class="active">3/4</button>
+    <button data-cam="front">Front</button>
+    <button data-cam="side">Side</button>
+    <button data-cam="back">Back</button>
+    <button data-cam="top">Top</button>
+    <button id="btn-turntable">360° Spin</button>
+    <button id="btn-info">Notes</button>
+  </div>
+  <div class="info-drawer" id="info-drawer">
+    <h3>Skullcrawler Anatomy</h3>
+    <ul>
+      <li><strong>Skull Mask:</strong> Bone-white cranium smoothly collared into muscular neck; recessed amber-olive eyes tucked behind dark decoy fenestrae.</li>
+      <li><strong>Oral Cavity:</strong> Sealed dark gullet &amp; elastic cheek muscles, double fang rows, and a permanent 3-forked prehensile tongue.</li>
+      <li><strong>Body:</strong> Zero hindlimbs; arched ribbed hump, serrated dorsal crest, and barbed tail.</li>
+      <li><strong>Forelimbs:</strong> Chest-blended 3D deltoid musculature, curved elbow spurs, osteoderm ridges, and wide splayed 4-clawed hands.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="hud-bottom">
+  <div class="btn-group">
+    <button class="anim-btn" data-anim="idle">Idle</button>
+    <button class="anim-btn active" data-anim="walk">Walk</button>
+    <button class="anim-btn" data-anim="run">Run</button>
+    <button class="anim-btn scream-btn" data-anim="scream">Scream</button>
+  </div>
+  <div class="btn-group">
+    <div class="slider-wrap">
+      <span>Speed</span>
+      <input type="range" id="speed-slider" min="0.25" max="2.0" step="0.05" value="1.0" />
+      <span id="speed-val">1.0x</span>
+    </div>
+  </div>
+  <div class="btn-group">
+    <button id="btn-rings" class="active">Rings</button>
+    <button id="btn-sound">Roar SFX</button>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const smoothstep = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0 || 1e-8), 0, 1); return t * t * (3 - 2 * t); };
+
+function evalSpline(xs, ys, x) {
+  if (x <= xs[0]) return ys[0];
+  const n = xs.length;
+  if (x >= xs[n - 1]) return ys[n - 1];
+  let i = 0; while (i < n - 2 && x > xs[i + 1]) i++;
+  const t = (x - xs[i]) / (xs[i + 1] - xs[i]), t2 = t * t, t3 = t2 * t;
+  const y0 = ys[Math.max(0, i - 1)], y1 = ys[i], y2 = ys[i + 1], y3 = ys[Math.min(n - 1, i + 2)];
+  return 0.5 * ((2 * y1) + (-y0 + y2) * t + (2 * y0 - 5 * y1 + 4 * y2 - y3) * t2 + (-y0 + 3 * y1 - 3 * y2 + y3) * t3);
+}
+
+const hash2 = (ix, iy) => { const n = Math.sin(ix * 127.1 + iy * 311.7) * 43758.5453; return n - Math.floor(n); };
+function noise2(x, y) {
+  const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+  const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+  return lerp(lerp(hash2(ix, iy), hash2(ix + 1, iy), ux), lerp(hash2(ix, iy + 1), hash2(ix + 1, iy + 1), ux), uy);
+}
+const fbm = (x, y) => 0.55 * noise2(x, y) + 0.30 * noise2(x * 2.1, y * 2.1) + 0.15 * noise2(x * 4.3, y * 4.3);
+
+function createReptileTextures(size = 384) {
+  const mk = () => { const c = document.createElement('canvas'); c.width = c.height = size; return [c, c.getContext('2d')]; };
+  const [dc, dCtx] = mk(), [bc, bCtx] = mk(), [rc, rCtx] = mk();
+  const dImg = dCtx.createImageData(size, size), bImg = bCtx.createImageData(size, size), rImg = rCtx.createImageData(size, size);
+  const cells = 24, pts = [];
+  for (let cy = 0; cy < cells; cy++) for (let cx = 0; cx < cells; cx++)
+    pts.push({ x: cx + 0.18 + 0.64 * hash2(cx, cy), y: cy + 0.18 + 0.64 * hash2(cx + 97, cy + 53) });
+
+  for (let py = 0; py < size; py++) {
+    const v = py / size;
+    for (let px = 0; px < size; px++) {
+      const u = px / size, gx = u * cells, gy = v * cells, icx = Math.floor(gx), icy = Math.floor(gy);
+      let d1 = 9e9, d2 = 9e9;
+      for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+        const wx = (icx + ox + cells) % cells, wy = (icy + oy + cells) % cells, pt = pts[wy * cells + wx];
+        const dist = Math.hypot((pt.x + (icx + ox - wx)) - gx, (pt.y + (icy + oy - wy)) - gy);
+        if (dist < d1) { d2 = d1; d1 = dist; } else if (dist < d2) d2 = dist;
+      }
+      const dome = Math.pow(clamp((d2 - d1) * 2.2, 0, 1), 0.55), m = fbm(u * 14, v * 14);
+      const fold = Math.sin(u * Math.PI * 36 + m * 3.0) * 0.5 + 0.5, i = (py * size + px) * 4;
+      const t = Math.round(clamp(0.78 + 0.20 * dome + 0.10 * m - 0.06 * fold, 0.68, 1.0) * 255);
+      dImg.data[i] = t; dImg.data[i+1] = Math.round(t * (0.98 + 0.02 * m)); dImg.data[i+2] = Math.round(t * (0.94 + 0.03 * m)); dImg.data[i+3] = 255;
+      bImg.data[i] = bImg.data[i+1] = bImg.data[i+2] = Math.round(clamp(dome * 0.72 + fold * 0.18 + m * 0.15, 0, 1) * 255); bImg.data[i+3] = 255;
+      rImg.data[i] = rImg.data[i+1] = rImg.data[i+2] = Math.round(clamp(0.42 + 0.30 * (1 - dome) + 0.14 * m, 0.25, 0.88) * 255); rImg.data[i+3] = 255;
+    }
+  }
+  dCtx.putImageData(dImg, 0, 0); bCtx.putImageData(bImg, 0, 0); rCtx.putImageData(rImg, 0, 0);
+  const tx = (c, srgb) => { const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 3); if (srgb) t.colorSpace = THREE.SRGBColorSpace; return t; };
+  return { map: tx(dc, true), bumpMap: tx(bc, false), roughnessMap: tx(rc, false) };
+}
+
+class RoarSynth {
+  constructor() { this.ctx = null; this.on = false; this.last = -10; }
+  setEnabled(v) {
+    this.on = v;
+    if (v && !this.ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) this.ctx = new AC(); }
+    if (v && this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+  }
+  trigger() {
+    if (!this.on || !this.ctx) return;
+    const now = this.ctx.currentTime; if (now - this.last < 2.6) return; this.last = now;
+    const dur = 2.3, master = this.ctx.createGain();
+    master.gain.setValueAtTime(0.001, now); master.gain.exponentialRampToValueAtTime(0.32, now + 0.18);
+    master.gain.setValueAtTime(0.30, now + 1.2); master.gain.exponentialRampToValueAtTime(0.001, now + dur);
+    master.connect(this.ctx.destination);
+    const o1 = this.ctx.createOscillator(), o2 = this.ctx.createOscillator(), lfo = this.ctx.createOscillator(), lg = this.ctx.createGain(), f = this.ctx.createBiquadFilter();
+    o1.type = 'sawtooth'; o2.type = 'square'; lfo.frequency.value = 26; lg.gain.value = 38; lfo.connect(lg); lg.connect(o1.frequency);
+    o1.frequency.setValueAtTime(210, now); o1.frequency.exponentialRampToValueAtTime(480, now + 0.30); o1.frequency.exponentialRampToValueAtTime(135, now + dur);
+    o2.frequency.setValueAtTime(98, now); o2.frequency.exponentialRampToValueAtTime(185, now + 0.28); o2.frequency.exponentialRampToValueAtTime(64, now + dur);
+    f.type = 'bandpass'; f.Q.value = 2.4; f.frequency.setValueAtTime(750, now); f.frequency.exponentialRampToValueAtTime(1450, now + 0.35); f.frequency.exponentialRampToValueAtTime(420, now + dur);
+    const buf = this.ctx.createBuffer(1, Math.floor(this.ctx.sampleRate * dur), this.ctx.sampleRate), ch = buf.getChannelData(0);
+    for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
+    const ns = this.ctx.createBufferSource(), nf = this.ctx.createBiquadFilter(), ng = this.ctx.createGain();
+    ns.buffer = buf; nf.type = 'bandpass'; nf.frequency.value = 1800; nf.Q.value = 1.2; ng.gain.value = 0.25;
+    o1.connect(f); o2.connect(f); f.connect(master); ns.connect(nf); nf.connect(ng); ng.connect(master);
+    lfo.start(now); o1.start(now); o2.start(now); ns.start(now);
+    lfo.stop(now + dur); o1.stop(now + dur); o2.stop(now + dur); ns.stop(now + dur);
+  }
+}
+
+export class SkullcrawlerModel {
+  constructor() {
+    this.group = new THREE.Group();
+    const tx = createReptileTextures(384);
+    this.skinMat = new THREE.MeshStandardMaterial({ vertexColors: true, map: tx.map, bumpMap: tx.bumpMap, bumpScale: 0.032, roughnessMap: tx.roughnessMap, roughness: 0.85, metalness: 0.04 });
+    this.toothMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.32, metalness: 0.05 });
+    this.clawMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.22, metalness: 0.08 });
+    this.wetMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.20, metalness: 0.02 });
+    this.L1 = 0.88; this.L2 = 1.52; this.wristY = 0.175;
+    this._buildRig();
+    this.targetAnim = 'walk'; this.blend = 1; this.time = 0; this.speed = 1; this.prevPose = null; this.onScreamPeak = null;
+  }
+
+  setAnimation(name) {
+    if (!['idle', 'walk', 'run', 'scream'].includes(name) || name === this.targetAnim) return;
+    this.prevPose = this._samplePose(this.targetAnim, this.time);
+    this.targetAnim = name; this.blend = 0;
+    if (name === 'scream') { this.time = 0.05; if (this.onScreamPeak) this.onScreamPeak(); }
+  }
+
+  _buildRig() {
+    const ctrlS = [0, 0.12, 0.25, 0.40, 0.55, 0.68, 0.78, 0.87, 0.94, 1.0];
+    const ctrlZ = [-6.5, -5.0, -3.55, -2.35, -1.35, -0.55, 0.02, 0.54, 0.94, 1.30];
+    const ctrlY = [ 0.60, 0.46, 0.54, 0.86, 1.30, 1.74, 1.92, 1.82, 1.79, 1.78];
+    const stationS = [0.02, 0.11, 0.22, 0.34, 0.46, 0.57, 0.67, 0.78, 0.88, 0.95, 1.00];
+    const names = ['tail6','tail5','tail4','tail3','tail2','tail1','pelvis','chest','neck1','neck2','headBase'];
+    const wPos = stationS.map(s => new THREE.Vector3(0, evalSpline(ctrlS, ctrlY, s), evalSpline(ctrlS, ctrlZ, s)));
+
+    this.spineBones = names.map(n => { const b = new THREE.Bone(); b.name = n; return b; });
+    this.bones = {}; names.forEach((n, i) => this.bones[n] = this.spineBones[i]);
+    this.bones.pelvis.position.copy(wPos[6]);
+    this.group.add(this.bones.pelvis);
+    for (let i = 7; i <= 10; i++) { this.spineBones[i].position.copy(wPos[i]).sub(wPos[i - 1]); this.spineBones[i - 1].add(this.spineBones[i]); }
+    for (let i = 5; i >= 0; i--) { this.spineBones[i].position.copy(wPos[i]).sub(wPos[i + 1]); this.spineBones[i + 1].add(this.spineBones[i]); }
+    this.pelvisRest = wPos[6].clone();
+
+    this.limbs = { L: this._buildLimbRig(1, this.bones.chest, wPos[7]), R: this._buildLimbRig(-1, this.bones.chest, wPos[7]) };
+    const allBones = [
+      ...this.spineBones,
+      this.limbs.L.shB, this.limbs.L.elB, this.limbs.L.wrB,
+      this.limbs.R.shB, this.limbs.R.elB, this.limbs.R.wrB,
+    ];
+
+    const bodyGeo = this._buildBodyAndLimbsGeo(ctrlS, ctrlZ, ctrlY, stationS, wPos[7]);
+    this.bodyMesh = new THREE.SkinnedMesh(bodyGeo, this.skinMat);
+    this.bodyMesh.castShadow = this.bodyMesh.receiveShadow = true; this.bodyMesh.frustumCulled = false;
+    this.group.add(this.bodyMesh);
+    this.group.updateMatrixWorld(true);
+    this.bodyMesh.bind(new THREE.Skeleton(allBones), new THREE.Matrix4());
+
+    this._buildHead(this.bones.headBase);
+  }
+
+  _buildBodyAndLimbsGeo(ctrlS, ctrlZ, ctrlY, stationS, chestW) {
+    const nAx = 92, nRd = 32;
+    const i0 = 68, i1 = 76, j0L = 6, j1L = 13;
+    const j0R = nRd - j1L, j1R = nRd - j0L;
+    const dI = i1 - i0, dJ = j1L - j0L;
+    const iMid = 0.5 * (i0 + i1), jMidL = 0.5 * (j0L + j1L);
+
+    const evalTorsoPt = (iVal, jVal) => {
+      const sideJ = jVal <= nRd * 0.5 ? jVal : nRd - jVal;
+      const di = (iVal - iMid) / (0.5 * dI), dj = (sideJ - jMidL) / (0.5 * dJ);
+      const boxD = Math.max(Math.abs(di), Math.abs(dj));
+      let iEff = iVal, jEff = jVal;
+      if (Math.abs(di) <= 1.75 && Math.abs(dj) <= 1.75 && (Math.abs(di) > 0.01 || Math.abs(dj) > 0.01)) {
+        const rEuclid = Math.hypot(di, dj);
+        const wRound = smoothstep(1.75, 1.0, boxD) * smoothstep(0.45, 1.0, boxD);
+        const scale = lerp(1.0, boxD / Math.max(rEuclid, 1e-6), 0.85 * wRound);
+        iEff = iMid + di * scale * (0.5 * dI);
+        const sideJNew = jMidL + dj * scale * (0.5 * dJ);
+        jEff = jVal <= nRd * 0.5 ? sideJNew : nRd - sideJNew;
+      }
+
+      const sEff = clamp(iEff / (nAx - 1), 0, 1);
+      const zC = evalSpline(ctrlS, ctrlZ, sEff), yC = evalSpline(ctrlS, ctrlY, sEff);
+      const ds = 0.5 / (nAx - 1);
+      const dz = evalSpline(ctrlS, ctrlZ, Math.min(1, sEff + ds)) - evalSpline(ctrlS, ctrlZ, Math.max(0, sEff - ds));
+      const dy = evalSpline(ctrlS, ctrlY, Math.min(1, sEff + ds)) - evalSpline(ctrlS, ctrlY, Math.max(0, sEff - ds));
+      const tLen = Math.hypot(dz, dy) || 1e-8, nz = -dy / tLen, ny = dz / tLen;
+
+      const tTail = smoothstep(0, 0.72, sEff), hump = Math.exp(-0.5 * ((sEff - 0.76) / 0.095) ** 2), neckT = smoothstep(0.84, 1.0, sEff);
+      const rx = (0.018 + 0.36 * tTail ** 1.35 + 0.12 * hump) * (1 - 0.36 * neckT);
+      const ryU = (0.022 + 0.36 * tTail ** 1.25 + 0.18 * hump) * (1 - 0.42 * neckT);
+      const ryD = (0.018 + 0.27 * tTail ** 1.30 + 0.06 * hump) * (1 - 0.34 * neckT);
+      const crestH = (0.038 + 0.088 * hump + 0.028 * Math.exp(-0.5 * ((sEff - 0.35) / 0.18) ** 2)) * smoothstep(0.05, 0.18, sEff) * (1 - smoothstep(0.88, 0.98, sEff));
+      const ridgeW = 0.5 + 0.5 * Math.sin(sEff * Math.PI * 48), ribEnv = Math.exp(-0.5 * ((sEff - 0.73) / 0.09) ** 2), ribW = Math.sin(sEff * Math.PI * 64), barb = smoothstep(0.08, 0.015, sEff);
+
+      const th = (jEff / nRd) * Math.PI * 2, sT = Math.sin(th), cT = Math.cos(th);
+      let lx = rx * sT * (1 - 0.36 * (Math.max(0, (cT - 0.55) / 0.45) ** 1.5));
+      const topPin = Math.max(0, (cT - 0.86) / 0.14) ** 2.2;
+      const flank = Math.exp(-0.5 * ((Math.abs(sT) - 0.80) / 0.28) ** 2) * smoothstep(-0.5, 0.5, cT);
+      const shMask = Math.exp(-0.5 * (((iEff - iMid) / (0.85 * dI)) ** 2 + ((sideJ - jMidL) / (0.75 * dJ)) ** 2));
+      const rib = 0.026 * ribEnv * ribW * flank * (1 - 0.90 * shMask);
+      let ln = (cT >= 0 ? ryU * cT : ryD * cT) + crestH * (0.42 + 0.58 * ridgeW) * topPin + 0.35 * rib * cT;
+      lx += Math.sign(sT) * rib;
+      ln += 0.045 * Math.exp(-0.5 * ((sEff - 0.56) / 0.08) ** 2) * Math.max(0, -cT);
+      if (barb > 0 && cT > 0.65) ln += 0.065 * barb * ((cT - 0.65) / 0.35) ** 1.4;
+
+      const shFlare = Math.exp(-0.5 * (((iEff - iMid) / (1.35 * dI)) ** 2 + ((sideJ - jMidL) / (0.95 * dJ)) ** 2));
+      if (Math.abs(sT) > 0.05) {
+        lx += Math.sign(sT) * 0.085 * shFlare;
+        ln -= 0.018 * shFlare * smoothstep(0.0, 0.75, cT);
+        if (iEff > iMid) ln -= 0.014 * shFlare * smoothstep(0, 1, (iEff - iMid) / (0.90 * dI)) * smoothstep(0.3, -0.5, cT);
+      }
+
+      const p = new THREE.Vector3(lx, yC + ln * ny, zC + ln * nz);
+      let cr = lerp(0.20, 0.54, 0.68 * topPin), cg = lerp(0.22, 0.52, 0.68 * topPin), cb = lerp(0.18, 0.42, 0.68 * topPin);
+      const ribHi = Math.max(0, ribW) * ribEnv * flank * (1 - 0.90 * shMask);
+      cr = lerp(cr, 0.62, 0.52 * ribHi); cg = lerp(cg, 0.60, 0.52 * ribHi); cb = lerp(cb, 0.49, 0.52 * ribHi);
+      const sh = 1 - 0.25 * (0.5 + 0.5 * Math.sin(sEff * Math.PI * 40)) * (1 - smoothstep(0.15, 0.60, sEff));
+      cr *= sh; cg *= sh; cb *= sh;
+      if (cT < 0) { cr = lerp(cr, 0.14, -0.5 * cT); cg = lerp(cg, 0.15, -0.5 * cT); cb = lerp(cb, 0.13, -0.5 * cT); }
+      if (sEff < 0.045 && cT > 0.3) { const it = (0.045 - sEff) / 0.045; cr = lerp(cr, 0.80, it); cg = lerp(cg, 0.77, it); cb = lerp(cb, 0.67, it); }
+      return { p, c: [clamp(cr, 0, 1), clamp(cg, 0, 1), clamp(cb, 0, 1)] };
+    };
+
+    const gridPos = Array.from({ length: nAx }, () => Array(nRd));
+    const gridCol = Array.from({ length: nAx }, () => Array(nRd));
+    const verts = [], cols = [], uvs = [], si = [], sw = [], idx = [];
+    const canonOf = [], relaxWt = [];
+    const vid = Array.from({ length: nAx }, () => Array(nRd + 1).fill(-1));
+    const insideQuad = (i, j) => (i >= i0 && i < i1 && j >= j0L && j < j1L) || (i >= i0 && i < i1 && j >= j0R && j < j1R);
+    const strictlyInside = (i, j) => (i > i0 && i < i1 && j > j0L && j < j1L) || (i > i0 && i < i1 && j > j0R && j < j1R);
+
+    const addVert = (p, c, u, v, bones, weights, canon = -1, rWt = 0) => {
+      const id = verts.length;
+      verts.push(p.clone()); cols.push(c); uvs.push(u, v);
+      si.push(bones[0], bones[1], bones[2], bones[3]);
+      sw.push(weights[0], weights[1], weights[2], weights[3]);
+      canonOf.push(canon >= 0 ? canon : id);
+      relaxWt.push(rWt);
+      return id;
+    };
+
+    for (let i = 0; i < nAx; i++) {
+      const sRaw = i / (nAx - 1);
+      let b0 = 0, b1 = 0, w0 = 1, w1 = 0;
+      if (sRaw >= stationS[stationS.length - 1]) b0 = b1 = stationS.length - 1;
+      else if (sRaw > stationS[0]) for (let k = 0; k < stationS.length - 1; k++) if (sRaw >= stationS[k] && sRaw <= stationS[k + 1]) {
+        b0 = k; b1 = k + 1; const t = (sRaw - stationS[k]) / (stationS[k + 1] - stationS[k]); w1 = t * t * (3 - 2 * t); w0 = 1 - w1; break;
+      }
+      for (let j = 0; j < nRd; j++) {
+        const pt = evalTorsoPt(i, j);
+        gridPos[i][j] = pt.p; gridCol[i][j] = pt.c;
+        if (strictlyInside(i, j)) continue;
+        const sideJ = j <= nRd * 0.5 ? j : nRd - j;
+        const diAbs = Math.max(0, Math.abs(i - iMid) - 0.5 * dI), djAbs = Math.max(0, Math.abs(sideJ - jMidL) - 0.5 * dJ);
+        const dBox = Math.hypot(diAbs, djAbs);
+        const rWt = (dBox <= 1.5 && sideJ >= 5 && sideJ <= 14) ? 0.22 * smoothstep(1.6, 0, dBox) : 0;
+        vid[i][j] = addVert(pt.p, pt.c, sRaw * 6, j / nRd, [b0, b1, 0, 0], [w0, w1, 0, 0], -1, rWt);
+      }
+      vid[i][nRd] = addVert(gridPos[i][0], gridCol[i][0], sRaw * 6, 1.0, [b0, b1, 0, 0], [w0, w1, 0, 0], vid[i][0], 0);
+    }
+
+    for (let i = 0; i < nAx - 1; i++) for (let j = 0; j < nRd; j++) {
+      if (insideQuad(i, j)) continue;
+      const a = vid[i][j], b = vid[i + 1][j], c = vid[i + 1][j + 1], d = vid[i][j + 1];
+      idx.push(a, b, c, a, c, d);
+    }
+    const tip = addVert(new THREE.Vector3(0, evalSpline(ctrlS, ctrlY, 0), evalSpline(ctrlS, ctrlZ, 0) - 0.06), [0.80, 0.77, 0.67], 0, 0.5, [0, 0, 0, 0], [1, 0, 0, 0]);
+    for (let j = 0; j < nRd; j++) idx.push(tip, vid[0][j], vid[0][j + 1]);
+    const nCap = addVert(new THREE.Vector3(0, evalSpline(ctrlS, ctrlY, 1), evalSpline(ctrlS, ctrlZ, 1)), [0.18, 0.19, 0.16], 6, 0.5, [stationS.length - 1, 0, 0, 0], [1, 0, 0, 0]);
+    for (let j = 0; j < nRd; j++) idx.push(nCap, vid[nAx - 1][j + 1], vid[nAx - 1][j]);
+
+    for (let sIdx = 0; sIdx < 2; sIdx++) {
+      const side = sIdx === 0 ? 1 : -1;
+      const j0 = side === 1 ? j0L : j0R, j1 = side === 1 ? j1L : j1R;
+      const loopIJ = [];
+      for (let i = i0; i < i1; i++) loopIJ.push([i, j0]);
+      for (let j = j0; j < j1; j++) loopIJ.push([i1, j]);
+      for (let i = i1; i > i0; i--) loopIJ.push([i, j1]);
+      for (let j = j1; j > j0; j--) loopIJ.push([i0, j]);
+      const loopVids = loopIJ.map(([i, j]) => vid[i][j]);
+      const loopPts = loopVids.map(v => verts[v].clone());
+      const nR = loopVids.length;
+
+      const shLocal = new THREE.Vector3(side * 0.44, -0.11, 0);
+      const S0 = chestW.clone().add(shLocal), W0 = new THREE.Vector3(side * 0.82, this.wristY, 0.06);
+      const ik = this._solveIK(S0, W0, new THREE.Vector3(side * 0.68, 0.44, -0.76)), E0 = ik.E;
+      const E0Ctrl = E0.clone().addScaledVector(ik.perp, 0.068);
+      const P0 = new THREE.Vector3(); loopPts.forEach(p => P0.add(p)); P0.divideScalar(nR);
+
+      const nArm = 48, nHand = 14, kB = 14;
+      const tArm0 = new THREE.Vector3(side * 0.88, -0.34, -0.22).normalize();
+      let pts = Array.from({ length: nArm }, (_, k) => {
+        const s = k / (nArm - 1);
+        if (s <= 0.44) {
+          const u = s / 0.44, c1 = P0.clone().addScaledVector(tArm0, 0.30), c2 = E0Ctrl.clone().addScaledVector(E0Ctrl.clone().sub(P0), -0.32);
+          const m = 1 - u;
+          return new THREE.Vector3()
+            .addScaledVector(P0, m * m * m).addScaledVector(c1, 3 * m * m * u)
+            .addScaledVector(c2, 3 * m * u * u).addScaledVector(E0Ctrl, u * u * u);
+        }
+        return new THREE.Vector3().lerpVectors(E0Ctrl, W0, (s - 0.44) / 0.56);
+      });
+      for (let pass = 0; pass < 20; pass++) {
+        const nx = pts.map(p => p.clone());
+        for (let k = 3; k < nArm - 3; k++) nx[k].copy(pts[k - 1]).multiplyScalar(0.25).addScaledVector(pts[k], 0.5).addScaledVector(pts[k + 1], 0.25);
+        pts = nx;
+      }
+      pts[0].copy(P0); pts[nArm - 1].copy(W0);
+
+      // Extend centerline C1 smoothly from wrist through arched metacarpal bridge
+      const tanW0 = pts[nArm - 1].clone().sub(pts[nArm - 2]).normalize();
+      const MEnd = new THREE.Vector3(side * 0.832, 0.088, 0.220);
+      const tanEnd = new THREE.Vector3(side * 0.03, -0.26, 0.965).normalize();
+      const spanH = MEnd.distanceTo(W0);
+      const c1H = W0.clone().addScaledVector(tanW0, spanH * 0.48);
+      const c2H = MEnd.clone().addScaledVector(tanEnd, -spanH * 0.38);
+      for (let i = 1; i <= nHand; i++) {
+        const u = i / nHand, m = 1 - u;
+        pts.push(new THREE.Vector3()
+          .addScaledVector(W0, m * m * m).addScaledVector(c1H, 3 * m * m * u)
+          .addScaledVector(c2H, 3 * m * u * u).addScaledVector(MEnd, u * u * u));
+      }
+      const nS = pts.length;
+      for (let pass = 0; pass < 35; pass++) {
+        const nx = pts.map(p => p.clone());
+        for (let k = nArm - 16; k < nArm + 10; k++) nx[k].copy(pts[k - 1]).multiplyScalar(0.25).addScaledVector(pts[k], 0.5).addScaledVector(pts[k + 1], 0.25);
+        pts = nx;
+      }
+
+      const jMidS = side === 1 ? jMidL : (nRd - jMidL);
+      const loopTans = loopIJ.map(([i, j], m) => {
+        const gi = i - iMid, gj = j - jMidS, gl = Math.max(Math.abs(gi / (0.5 * dI)), Math.abs(gj / (0.5 * dJ)), 1e-6);
+        const pOut = evalTorsoPt(i + 0.7 * gi / gl, j + 0.7 * gj / gl).p;
+        const tVec = gridPos[i][j].clone().sub(pOut);
+        const rHat = loopPts[m].clone().sub(P0); rHat.x = 0;
+        if (rHat.lengthSq() > 1e-12) {
+          rHat.normalize();
+          const inward = tVec.dot(rHat);
+          if (inward < 0) tVec.addScaledVector(rHat, -inward);
+        }
+        tVec.divideScalar(tVec.length() || 1e-6).multiplyScalar(0.55).addScaledVector(tArm0, 0.45).normalize();
+        return tVec;
+      });
+
+      const tans = pts.map((_, k) => (k === 0 ? pts[1].clone().sub(pts[0]) : (k === nS - 1 ? pts[k].clone().sub(pts[k - 1]) : pts[k + 1].clone().sub(pts[k - 1]))).normalize());
+      const outDs = new Array(nS), latDs = new Array(nS);
+      for (let k = 0; k < nArm; k++) {
+        const tan = tans[k];
+        const o = ik.perp.clone().addScaledVector(tan, -ik.perp.dot(tan)).normalize();
+        outDs[k] = o;
+        latDs[k] = new THREE.Vector3().crossVectors(tan, o).normalize();
+      }
+      const qStep = new THREE.Quaternion();
+      for (let k = nArm; k < nS; k++) {
+        qStep.setFromUnitVectors(tans[k - 1], tans[k]);
+        outDs[k] = outDs[k - 1].clone().applyQuaternion(qStep).normalize();
+        latDs[k] = latDs[k - 1].clone().applyQuaternion(qStep).normalize();
+      }
+
+      const tanB = tans[kB], outB = outDs[kB], latB = latDs[kB];
+      const phis = loopPts.map(p => { const d = p.clone().sub(P0); return Math.atan2(d.dot(latB), d.dot(outB)); });
+      for (let m = 1; m < nR; m++) {
+        let diff = phis[m] - phis[m - 1];
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        phis[m] = phis[m - 1] + diff;
+      }
+      const signDir = (phis[nR - 1] - phis[0]) > 0 ? 1 : -1;
+      const digitFan = [-0.66, -0.22, 0.15, 0.56];
+
+      const evalArmPt = (k, m) => {
+        const sArm = Math.min(1, k / (nArm - 1));
+        const uH = k < nArm ? 0 : (k - (nArm - 1)) / nHand;
+        const sCont = k / (nArm - 1);
+        const tan = tans[k], outD = outDs[k], latD = latDs[k];
+
+        const delt = 0.052 * Math.exp(-0.5 * ((sArm - 0.16) / 0.09) ** 2), bicep = 0.032 * Math.exp(-0.5 * ((sArm - 0.30) / 0.09) ** 2), foreB = 0.032 * Math.exp(-0.5 * ((sArm - 0.56) / 0.10) ** 2);
+        const wristNeck = 1 - 0.08 * Math.exp(-0.5 * ((sArm - 0.88) / 0.10) ** 2);
+        const rO = (0.04 + 0.180 * (1 - 0.50 * sArm) + delt + bicep + foreB) * wristNeck;
+        const rL = (0.04 + 0.170 * (1 - 0.48 * sArm) + delt * 0.9 + bicep * 0.8 + foreB * 0.7) * wristNeck;
+        const spurRidge = Math.exp(-0.5 * ((sArm - 0.44) / 0.042) ** 2);
+        const fEnvArm = smoothstep(0.48, 0.58, sCont) * (1 - smoothstep(0.76, 0.94, sCont));
+        const fEnvWrist = smoothstep(0.76, 0.88, sCont) * (1 - smoothstep(1.12, 1.28, sCont));
+        const sW = Math.sin(sCont * Math.PI * 56), sWWrist = Math.sin(sCont * Math.PI * 24);
+
+        const thUni = phis[0] + signDir * (m / nR) * Math.PI * 2;
+        const th = lerp(phis[m], thUni, smoothstep(0.05, 0.44, sArm)), cT = Math.cos(th), sT = Math.sin(th);
+        const ridge = spurRidge * (Math.max(0, (cT - 0.45) / 0.55) ** 1.8);
+        const innerTuck = 1 - 0.06 * Math.exp(-0.5 * ((sArm - 0.44) / 0.12) ** 2) * Math.max(0, -cT);
+        const ro = rO * cT * innerTuck + 0.11 * ridge + 0.022 * fEnvArm * sW * Math.max(0, cT);
+        const rl = rL * sT * (1 - 0.35 * ridge);
+        const pCyl = pts[k].clone().addScaledVector(outD, ro).addScaledVector(latD, rl);
+
+        const blendW = uH > 0 ? 1 : smoothstep(0.76, 1.0, sArm);
+        let p = pCyl, sP = 0, metaRidge = 0;
+        if (blendW > 0) {
+          const dorsW = new THREE.Vector3(0, 1, 0).addScaledVector(tan, -tan.y).normalize();
+          const latW = new THREE.Vector3().crossVectors(dorsW, tan).normalize();
+          if (latW.x * side < 0) latW.negate();
+          const uDir = outD.clone().multiplyScalar(cT).addScaledVector(latD, sT).normalize();
+          const psi = Math.atan2(uDir.dot(dorsW), uDir.dot(latW)), cP = Math.cos(psi);
+          sP = Math.sin(psi);
+
+          const tipTuck = 1 - 0.18 * smoothstep(0.84, 1.0, uH);
+          const wLat = lerp(0.122, 0.166, smoothstep(0.0, 0.78, uH)) * tipTuck;
+          const hDors = lerp(0.120, 0.056, smoothstep(0.0, 0.95, uH)) * tipTuck;
+          const hPalm = lerp(0.118, 0.056, smoothstep(0.0, 0.92, uH)) * tipTuck;
+          const heelPad = 0.028 * Math.exp(-0.5 * ((uH - 0.18) / 0.18) ** 2);
+          const palmArch = 0.015 * Math.exp(-0.5 * ((uH - 0.60) / 0.20) ** 2);
+
+          if (sP > 0) {
+            const fanAng = cP * 0.70;
+            for (let di = 0; di < digitFan.length; di++) {
+              const amp = (di === 1 || di === 2) ? 0.020 : 0.012;
+              metaRidge += amp * Math.exp(-0.5 * ((fanAng - digitFan[di]) / 0.15) ** 2);
+            }
+            metaRidge *= smoothstep(0.0, 0.40, sP) * smoothstep(0.0, 0.48, uH) * (1 - 0.30 * smoothstep(0.84, 1.0, uH));
+          }
+          const dorsalScute = 0.0038 * fEnvWrist * sWWrist * smoothstep(0.05, 0.50, sP);
+          const rxH = wLat * cP;
+          const ryH = sP >= 0
+            ? hDors * sP * (1 - 0.24 * (cP * cP) * smoothstep(0.05, 0.9, uH)) + metaRidge + dorsalScute
+            : (hPalm + heelPad - palmArch) * sP;
+          const pHand = pts[k].clone().addScaledVector(latW, rxH).addScaledVector(dorsW, ryH);
+          p = pCyl.clone().lerp(pHand, blendW);
+          p.y = Math.max(0.005, p.y);
+        }
+
+        const btCyl = fEnvArm > 0 && cT > -0.15 ? Math.max(0, sW) * fEnvArm * Math.max(0, (cT + 0.15) / 1.15) : 0;
+        const btWrist = fEnvWrist > 0 && sP > -0.10 ? Math.max(0, sWWrist) * fEnvWrist * smoothstep(-0.10, 0.50, sP) : 0;
+        const ridgeHi = clamp(metaRidge / 0.020, 0, 1) * smoothstep(0.05, 0.45, sP);
+        const bt = lerp(btCyl, Math.max(btWrist * 0.85, ridgeHi * 0.42), blendW);
+        let cr = lerp(0.21, 0.50, 0.68 * bt), cg = lerp(0.23, 0.48, 0.68 * bt), cb = lerp(0.19, 0.39, 0.68 * bt);
+        if (blendW > 0 && sP < 0) {
+          const pt = -0.45 * sP * blendW;
+          cr = lerp(cr, 0.14, pt); cg = lerp(cg, 0.15, pt); cb = lerp(cb, 0.13, pt);
+        }
+        return { p, c: [cr, cg, cb] };
+      };
+
+      const arm0 = Array.from({ length: nR }, (_, m) => evalArmPt(0, m));
+      const arm1 = Array.from({ length: nR }, (_, m) => evalArmPt(1, m));
+      const offset = loopPts.map((lp, m) => lp.clone().sub(arm0[m].p));
+      const dOff0 = loopTans.map((lt, m) => {
+        const tArmDu0 = arm1[m].p.clone().sub(arm0[m].p).multiplyScalar(kB);
+        return lt.clone().multiplyScalar(tArmDu0.length()).sub(tArmDu0);
+      });
+
+      const shBone = 11 + sIdx * 3, elBone = shBone + 1, wrBone = shBone + 2;
+      const ring0Arm = loopVids.map((vt, m) => {
+        const b = [si[vt * 4], si[vt * 4 + 1], si[vt * 4 + 2], si[vt * 4 + 3]];
+        const w = [sw[vt * 4], sw[vt * 4 + 1], sw[vt * 4 + 2], sw[vt * 4 + 3]];
+        return addVert(verts[vt], cols[vt], 0, (m / nR) * (2 / 3), b, w, vt, 0);
+      });
+      const v0 = ring0Arm[0];
+      ring0Arm.push(addVert(verts[v0], cols[v0], 0, 2 / 3, [si[v0*4], si[v0*4+1], si[v0*4+2], si[v0*4+3]], [sw[v0*4], sw[v0*4+1], sw[v0*4+2], sw[v0*4+3]], loopVids[0], 0));
+      let prevRing = ring0Arm;
+
+      for (let k = 1; k < nS; k++) {
+        const sArm = Math.min(1, k / (nArm - 1)), sCont = k / (nArm - 1), curRing = [];
+        for (let m = 0; m < nR; m++) {
+          const arm = evalArmPt(k, m);
+          let p = arm.p, c = arm.c;
+          if (k <= kB) {
+            const u = k / kB, u2 = u * u, u3 = u2 * u;
+            const h00 = 2 * u3 - 3 * u2 + 1, h10 = u3 - 2 * u2 + u;
+            p = arm.p.clone().addScaledVector(offset[m], h00).addScaledVector(dOff0[m], h10);
+            const cSock = cols[loopVids[m]], tc = smoothstep(0, 0.85, u);
+            c = [lerp(cSock[0], arm.c[0], tc), lerp(cSock[1], arm.c[1], tc), lerp(cSock[2], arm.c[2], tc)];
+          }
+          const vs = loopVids[m], sb0 = si[vs * 4], sb1 = si[vs * 4 + 1], sw0 = sw[vs * 4], sw1 = sw[vs * 4 + 1];
+          let vBones, vWeights;
+          if (sArm <= 0.30) {
+            const a = smoothstep(0, 0.30, sArm);
+            vBones = [sb0, sb1, shBone, 0]; vWeights = [sw0 * (1 - a), sw1 * (1 - a), a, 0];
+          } else if (sArm <= 0.32) {
+            vBones = [shBone, elBone, 0, 0]; vWeights = [1, 0, 0, 0];
+          } else if (sArm <= 0.58) {
+            const a = smoothstep(0.32, 0.58, sArm);
+            vBones = [shBone, elBone, 0, 0]; vWeights = [1 - a, a, 0, 0];
+          } else if (sCont <= 0.80) {
+            vBones = [elBone, wrBone, 0, 0]; vWeights = [1, 0, 0, 0];
+          } else if (sCont <= 1.07) {
+            const a = smoothstep(0.80, 1.07, sCont);
+            vBones = [elBone, wrBone, 0, 0]; vWeights = [1 - a, a, 0, 0];
+          } else {
+            vBones = [elBone, wrBone, 0, 0]; vWeights = [0, 1, 0, 0];
+          }
+          const rWt = k <= 4 ? 0.22 * smoothstep(5, 0, k) : 0;
+          curRing.push(addVert(p, c, sCont * 2.1, (m / nR) * (2 / 3), vBones, vWeights, -1, rWt));
+        }
+        const c0 = curRing[0];
+        curRing.push(addVert(verts[c0], cols[c0], sCont * 2.1, 2 / 3, [si[c0*4], si[c0*4+1], si[c0*4+2], si[c0*4+3]], [sw[c0*4], sw[c0*4+1], sw[c0*4+2], sw[c0*4+3]], c0, 0));
+
+        for (let m = 0; m < nR; m++) {
+          const a0 = prevRing[m], a1 = prevRing[m + 1], b0 = curRing[m], b1 = curRing[m + 1];
+          idx.push(a0, a1, b1, a0, b1, b0);
+        }
+        prevRing = curRing;
+      }
+      const capPt = pts[nS - 1].clone().addScaledVector(tans[nS - 1], 0.016);
+      capPt.y = Math.max(0.010, capPt.y);
+      const wCap = addVert(capPt, [0.21, 0.23, 0.19], ((nS - 1) / (nArm - 1)) * 2.1, 1 / 3, [elBone, wrBone, 0, 0], [0, 1, 0, 0]);
+      for (let m = 0; m < nR; m++) idx.push(wCap, prevRing[m], prevRing[m + 1]);
+    }
+        }
+        return new THREE.Vector3().lerpVectors(E0Ctrl, WEnd, (s - 0.44) / 0.56);
+      });
+      for (let pass = 0; pass < 20; pass++) {
+        const nx = pts.map(p => p.clone());
+        for (let k = 3; k < nS - 3; k++) nx[k].copy(pts[k - 1]).multiplyScalar(0.25).addScaledVector(pts[k], 0.5).addScaledVector(pts[k + 1], 0.25);
+        pts = nx;
+      }
+      pts[0].copy(P0); pts[nS - 1].copy(WEnd);
+
+      const jMidS = side === 1 ? jMidL : (nRd - jMidL);
+      const loopTans = loopIJ.map(([i, j], m) => {
+        const gi = i - iMid, gj = j - jMidS, gl = Math.max(Math.abs(gi / (0.5 * dI)), Math.abs(gj / (0.5 * dJ)), 1e-6);
+        const pOut = evalTorsoPt(i + 0.7 * gi / gl, j + 0.7 * gj / gl).p;
+        const tVec = gridPos[i][j].clone().sub(pOut);
+        const rHat = loopPts[m].clone().sub(P0); rHat.x = 0;
+        if (rHat.lengthSq() > 1e-12) {
+          rHat.normalize();
+          const inward = tVec.dot(rHat);
+          if (inward < 0) tVec.addScaledVector(rHat, -inward);
+        }
+        tVec.divideScalar(tVec.length() || 1e-6).multiplyScalar(0.55).addScaledVector(tArm0, 0.45).normalize();
+        return tVec;
+      });
+
+      const tans = pts.map((_, k) => (k === 0 ? pts[1].clone().sub(pts[0]) : (k === nS - 1 ? pts[k].clone().sub(pts[k - 1]) : pts[k + 1].clone().sub(pts[k - 1]))).normalize());
+      const tanB = tans[kB], outB = ik.perp.clone().addScaledVector(tanB, -ik.perp.dot(tanB)).normalize(), latB = new THREE.Vector3().crossVectors(tanB, outB).normalize();
+      const phis = loopPts.map(p => { const d = p.clone().sub(P0); return Math.atan2(d.dot(latB), d.dot(outB)); });
+      for (let m = 1; m < nR; m++) {
+        let diff = phis[m] - phis[m - 1];
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        phis[m] = phis[m - 1] + diff;
+      }
+      const signDir = (phis[nR - 1] - phis[0]) > 0 ? 1 : -1;
+
+      const evalArmPt = (k, m) => {
+        const s = k / (nS - 1), tan = tans[k];
+        const outD = ik.perp.clone().addScaledVector(tan, -ik.perp.dot(tan)).normalize(), latD = new THREE.Vector3().crossVectors(tan, outD).normalize();
+        const delt = 0.052 * Math.exp(-0.5 * ((s - 0.16) / 0.09) ** 2), bicep = 0.032 * Math.exp(-0.5 * ((s - 0.30) / 0.09) ** 2), foreB = 0.032 * Math.exp(-0.5 * ((s - 0.56) / 0.10) ** 2);
+        const rO = (0.04 + 0.180 * (1 - 0.50 * s) + delt + bicep + foreB) * (1 - 0.42 * smoothstep(0.84, 1.0, s));
+        const rL = (0.04 + 0.170 * (1 - 0.48 * s) + delt * 0.9 + bicep * 0.8 + foreB * 0.7) * (1 - 0.36 * smoothstep(0.84, 1.0, s));
+        const spurRidge = Math.exp(-0.5 * ((s - 0.44) / 0.042) ** 2), fEnv = smoothstep(0.48, 0.58, s) * (1 - smoothstep(0.88, 0.96, s)), sW = Math.sin(s * Math.PI * 56);
+
+        const thUni = phis[0] + signDir * (m / nR) * Math.PI * 2;
+        const th = lerp(phis[m], thUni, smoothstep(0.05, 0.44, s)), cT = Math.cos(th), sT = Math.sin(th);
+        const ridge = spurRidge * (Math.max(0, (cT - 0.45) / 0.55) ** 1.8);
+        const innerTuck = 1 - 0.06 * Math.exp(-0.5 * ((s - 0.44) / 0.12) ** 2) * Math.max(0, -cT);
+        const ro = rO * cT * innerTuck + 0.11 * ridge + 0.022 * fEnv * sW * Math.max(0, cT);
+        const rl = rL * sT * (1 - 0.35 * ridge);
+        const p = pts[k].clone().addScaledVector(outD, ro).addScaledVector(latD, rl);
+        if (s > 0.90) p.y = Math.max(0.012, p.y);
+        const bt = fEnv > 0 && cT > -0.15 ? Math.max(0, sW) * fEnv * Math.max(0, (cT + 0.15) / 1.15) : 0;
+        return { p, c: [lerp(0.21, 0.50, 0.68 * bt), lerp(0.23, 0.48, 0.68 * bt), lerp(0.19, 0.39, 0.68 * bt)] };
+      };
+
+      const arm0 = Array.from({ length: nR }, (_, m) => evalArmPt(0, m));
+      const arm1 = Array.from({ length: nR }, (_, m) => evalArmPt(1, m));
+      const offset = loopPts.map((lp, m) => lp.clone().sub(arm0[m].p));
+      const dOff0 = loopTans.map((lt, m) => {
+        const tArmDu0 = arm1[m].p.clone().sub(arm0[m].p).multiplyScalar(kB);
+        return lt.clone().multiplyScalar(tArmDu0.length()).sub(tArmDu0);
+      });
+
+      const shBone = 11 + sIdx * 3, elBone = shBone + 1, wrBone = shBone + 2;
+      const ring0Arm = loopVids.map((vt, m) => {
+        const b = [si[vt * 4], si[vt * 4 + 1], si[vt * 4 + 2], si[vt * 4 + 3]];
+        const w = [sw[vt * 4], sw[vt * 4 + 1], sw[vt * 4 + 2], sw[vt * 4 + 3]];
+        return addVert(verts[vt], cols[vt], 0, (m / nR) * (2 / 3), b, w, vt, 0);
+      });
+      const v0 = ring0Arm[0];
+      ring0Arm.push(addVert(verts[v0], cols[v0], 0, 2 / 3, [si[v0*4], si[v0*4+1], si[v0*4+2], si[v0*4+3]], [sw[v0*4], sw[v0*4+1], sw[v0*4+2], sw[v0*4+3]], loopVids[0], 0));
+      let prevRing = ring0Arm;
+
+      for (let k = 1; k < nS; k++) {
+        const s = k / (nS - 1), curRing = [];
+        for (let m = 0; m < nR; m++) {
+          const arm = evalArmPt(k, m);
+          let p = arm.p, c = arm.c;
+          if (k <= kB) {
+            const u = k / kB, u2 = u * u, u3 = u2 * u;
+            const h00 = 2 * u3 - 3 * u2 + 1, h10 = u3 - 2 * u2 + u;
+            p = arm.p.clone().addScaledVector(offset[m], h00).addScaledVector(dOff0[m], h10);
+            const cSock = cols[loopVids[m]], tc = smoothstep(0, 0.85, u);
+            c = [lerp(cSock[0], arm.c[0], tc), lerp(cSock[1], arm.c[1], tc), lerp(cSock[2], arm.c[2], tc)];
+          }
+          const vs = loopVids[m], sb0 = si[vs * 4], sb1 = si[vs * 4 + 1], sw0 = sw[vs * 4], sw1 = sw[vs * 4 + 1];
+          let vBones, vWeights;
+          if (s <= 0.30) {
+            const a = smoothstep(0, 0.30, s);
+            vBones = [sb0, sb1, shBone, 0]; vWeights = [sw0 * (1 - a), sw1 * (1 - a), a, 0];
+          } else if (s <= 0.32) {
+            vBones = [shBone, elBone, 0, 0]; vWeights = [1, 0, 0, 0];
+          } else if (s <= 0.58) {
+            const a = smoothstep(0.32, 0.58, s);
+            vBones = [shBone, elBone, 0, 0]; vWeights = [1 - a, a, 0, 0];
+          } else if (s <= 0.86) {
+            vBones = [elBone, wrBone, 0, 0]; vWeights = [1, 0, 0, 0];
+          } else {
+            const a = smoothstep(0.86, 1.0, s);
+            vBones = [elBone, wrBone, 0, 0]; vWeights = [1 - a, a, 0, 0];
+          }
+          const rWt = k <= 4 ? 0.22 * smoothstep(5, 0, k) : 0;
+          curRing.push(addVert(p, c, s * 2.1, (m / nR) * (2 / 3), vBones, vWeights, -1, rWt));
+        }
+        const c0 = curRing[0];
+        curRing.push(addVert(verts[c0], cols[c0], s * 2.1, 2 / 3, [si[c0*4], si[c0*4+1], si[c0*4+2], si[c0*4+3]], [sw[c0*4], sw[c0*4+1], sw[c0*4+2], sw[c0*4+3]], c0, 0));
+
+        for (let m = 0; m < nR; m++) {
+          const a0 = prevRing[m], a1 = prevRing[m + 1], b0 = curRing[m], b1 = curRing[m + 1];
+          idx.push(a0, a1, b1, a0, b1, b0);
+        }
+        prevRing = curRing;
+      }
+      const wCap = addVert(new THREE.Vector3(WEnd.x, Math.max(0.015, WEnd.y - 0.015), WEnd.z), [0.21, 0.23, 0.19], 2.1, 1 / 3, [elBone, wrBone, 0, 0], [0, 1, 0, 0]);
+      for (let m = 0; m < nR; m++) idx.push(wCap, prevRing[m], prevRing[m + 1]);
+    }
+
+    // Gentle shoulder transition relaxation using canonical topology
+    const nbrs = Array.from({ length: verts.length }, () => new Set());
+    for (let t = 0; t < idx.length; t += 3) {
+      const ca = canonOf[idx[t]], cb = canonOf[idx[t + 1]], cc = canonOf[idx[t + 2]];
+      if (ca !== cb) { nbrs[ca].add(cb); nbrs[cb].add(ca); }
+      if (cb !== cc) { nbrs[cb].add(cc); nbrs[cc].add(cb); }
+      if (cc !== ca) { nbrs[cc].add(ca); nbrs[ca].add(cc); }
+    }
+    for (let pass = 0; pass < 2; pass++) {
+      const next = verts.map(v => v.clone());
+      for (let v = 0; v < verts.length; v++) {
+        if (relaxWt[v] > 0 && canonOf[v] === v && nbrs[v].size > 0) {
+          const avg = new THREE.Vector3();
+          nbrs[v].forEach(nb => avg.add(verts[nb]));
+          avg.divideScalar(nbrs[v].size);
+          next[v].lerp(avg, relaxWt[v]);
+        }
+      }
+      for (let v = 0; v < verts.length; v++) {
+        verts[v] = canonOf[v] === v ? next[v] : next[canonOf[v]].clone();
+      }
+    }
+
+    const posArr = [], colArr = [];
+    for (let v = 0; v < verts.length; v++) {
+      posArr.push(verts[v].x, verts[v].y, verts[v].z);
+      colArr.push(cols[v][0], cols[v][1], cols[v][2]);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(posArr, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(colArr, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
+    g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
+    g.setIndex(idx);
+
+    // Exact area-weighted smooth normals welded across canonical vertex clusters
+    const normArr = new Float32Array(verts.length * 3);
+    const e1 = new THREE.Vector3(), e2 = new THREE.Vector3(), fn = new THREE.Vector3();
+    for (let t = 0; t < idx.length; t += 3) {
+      const a = idx[t], b = idx[t + 1], c = idx[t + 2];
+      e1.subVectors(verts[b], verts[a]);
+      e2.subVectors(verts[c], verts[a]);
+      fn.crossVectors(e1, e2);
+      for (const v of [canonOf[a], canonOf[b], canonOf[c]]) {
+        normArr[v * 3] += fn.x; normArr[v * 3 + 1] += fn.y; normArr[v * 3 + 2] += fn.z;
+      }
+    }
+    for (let v = 0; v < verts.length; v++) {
+      if (canonOf[v] === v) {
+        const nx = normArr[v * 3], ny = normArr[v * 3 + 1], nz = normArr[v * 3 + 2];
+        const len = Math.hypot(nx, ny, nz) || 1e-8;
+        normArr[v * 3] = nx / len; normArr[v * 3 + 1] = ny / len; normArr[v * 3 + 2] = nz / len;
+      }
+    }
+    for (let v = 0; v < verts.length; v++) {
+      const c = canonOf[v];
+      if (c !== v) {
+        normArr[v * 3] = normArr[c * 3]; normArr[v * 3 + 1] = normArr[c * 3 + 1]; normArr[v * 3 + 2] = normArr[c * 3 + 2];
+      }
+    }
+    g.setAttribute('normal', new THREE.BufferAttribute(normArr, 3));
+    return g;
+  }
+
+  _buildHead(headBone) {
+    const nU = 56, nV = 48, pos = [], col = [], uv = [], idx = [];
+    const prof = (u) => {
+      const tip = smoothstep(0.89, 1.0, u), rearT = smoothstep(0.0, 0.16, u);
+      const tEnd = clamp((u - 0.93) / 0.07, 0, 1), endRound = Math.sqrt(Math.max(0.02, 1 - 0.88 * tEnd * tEnd));
+      const tipFade = (1 - 0.56 * tip) * endRound;
+      const hwS = (0.25 * (1 - 0.62 * u ** 1.18) + 0.055 * Math.exp(-0.5 * ((u - 0.22) / 0.10) ** 2) + 0.030 * Math.exp(-0.5 * ((u - 0.50) / 0.11) ** 2)) * tipFade;
+      const hTS = (0.26 * (1 - 0.56 * u ** 1.08) + 0.03 * Math.exp(-0.5 * ((u - 0.24) / 0.14) ** 2)) * tipFade;
+      return { hw: lerp(0.22, hwS, rearT), hT: lerp(0.21, hTS, rearT), hB: lerp(-0.11, -0.065 * (1 - 0.35 * u) * tipFade, rearT), z: -0.20 + 1.24 * u, tip };
+    };
+    const rimF = 0.35 + 0.65 * Math.exp(-0.5 * ((1 - 0.88) / 0.16) ** 2);
+    for (let i = 0; i < nU; i++) {
+      const u = i / (nU - 1), { hw, hT, hB, z, tip } = prof(u), yRim = hB * rimF;
+      for (let j = 0; j < nV; j++) {
+        const v = (j / nV) * Math.PI * 2, sV = Math.sin(v), cV = Math.cos(v);
+        const bridge = 1 - 0.04 * smoothstep(0.45, 0.15, Math.abs(sV)) * smoothstep(0.25, 0.45, u);
+        const yTop = yRim + (hT * bridge - yRim) * (Math.max(0, cV) ** 0.78);
+        const yBot = hB * (0.35 + 0.65 * Math.exp(-0.5 * ((Math.abs(sV) - 0.88) / 0.16) ** 2)) + 0.055 * (1 - tip) * (1 - Math.abs(sV)) * Math.max(0, -cV);
+        let lx = hw * sV, ly = lerp(yBot, yTop, smoothstep(-0.12, 0.08, cV));
+        const horn = Math.exp(-0.5 * ((u - 0.22) / 0.085) ** 2) * Math.exp(-0.5 * ((Math.abs(sV) - 0.86) / 0.22) ** 2) * smoothstep(0.0, 0.50, cV);
+        lx += Math.sign(sV) * 0.065 * horn; ly += 0.048 * horn; const zH = -0.035 * horn;
+        const brow = Math.exp(-0.5 * ((u - 0.48) / 0.16) ** 2) * Math.exp(-0.5 * ((Math.abs(sV) - 0.56) / 0.15) ** 2) * smoothstep(0.35, 0.85, cV);
+        ly += 0.054 * brow; lx += Math.sign(sV) * 0.028 * brow;
+        const fSide = smoothstep(0.42, 0.84, Math.abs(sV));
+        const fen = Math.exp(-1.5 * (((u - 0.58) / 0.11) ** 2 + ((cV - 0.36) / 0.24) ** 2)) * fSide;
+        const nos = Math.exp(-2.0 * (((u - 0.87) / 0.052) ** 2 + ((cV - 0.56) / 0.22) ** 2)) * smoothstep(0.28, 0.72, Math.abs(sV));
+        const eye = Math.exp(-2.2 * (((u - 0.33) / 0.052) ** 2 + ((cV - 0.24) / 0.16) ** 2)) * fSide;
+        lx -= Math.sign(sV) * (0.095 * fen + 0.024 * nos + 0.046 * eye);
+        ly -= (0.025 * fen + 0.015 * nos + 0.014 * eye);
+        pos.push(lx, ly, z + zH); uv.push(u * 1.4, j / nV);
+
+        const mT = smoothstep(0.14, 0.30, u) * smoothstep(-0.35, 0.15, cV);
+        let cr = lerp(0.20, 0.83, mT), cg = lerp(0.22, 0.80, mT), cb = lerp(0.18, 0.72, mT);
+        if (cV < -0.18 && Math.abs(sV) < 0.76 && u < 0.90) {
+          const pt = Math.min(1, (-cV - 0.18) / 0.40) * smoothstep(0.76, 0.45, Math.abs(sV)) * smoothstep(0.90, 0.78, u);
+          cr = lerp(cr, 0.38, pt); cg = lerp(cg, 0.12, pt); cb = lerp(cb, 0.13, pt);
+        }
+        const dp = clamp(fen * 1.6 + nos * 1.4 + eye * 1.25, 0, 1);
+        col.push(lerp(cr, 0.04, dp), lerp(cg, 0.04, dp), lerp(cb, 0.04, dp));
+      }
+    }
+    for (let i = 0; i < nU - 1; i++) for (let j = 0; j < nV; j++) {
+      const jn = (j + 1) % nV, a = i * nV + j, b = (i + 1) * nV + j, c = (i + 1) * nV + jn, d = i * nV + jn;
+      idx.push(a, b, c, a, c, d);
+    }
+    const rIdx = pos.length / 3; pos.push(0, 0.04, -0.22); uv.push(0, 0.5); col.push(0.20, 0.22, 0.18);
+    for (let j = 0; j < nV; j++) idx.push(rIdx, j, (j + 1) % nV);
+    const stIdx = pos.length / 3; pos.push(0, 0.002, 1.046); uv.push(1.4, 0.5); col.push(0.83, 0.80, 0.72);
+    for (let j = 0; j < nV; j++) idx.push(stIdx, (nU - 1) * nV + ((j + 1) % nV), (nU - 1) * nV + j);
+    const skGeo = new THREE.BufferGeometry();
+    skGeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    skGeo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    skGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    skGeo.setIndex(idx); skGeo.computeVertexNormals();
+    const skMesh = new THREE.Mesh(skGeo, this.skinMat); skMesh.castShadow = skMesh.receiveShadow = true; headBone.add(skMesh);
+
+    for (const sgn of [-1, 1]) {
+      const eg = new THREE.Group(); eg.position.set(sgn * 0.182, 0.052, 0.205);
+      eg.add(new THREE.Mesh(new THREE.SphereGeometry(0.022, 12, 10), new THREE.MeshStandardMaterial({ color: 0x4f4c24, roughness: 0.06, metalness: 0.08 })));
+      const p = new THREE.Mesh(new THREE.SphereGeometry(0.011, 8, 8), new THREE.MeshBasicMaterial({ color: 0x050504 }));
+      p.scale.set(0.7, 1.15, 0.45); p.position.set(sgn * 0.014, 0, 0.004); eg.add(p); headBone.add(eg);
+    }
+
+    headBone.add(this._buildTeeth((k, inn) => {
+      const u = 0.25 + 0.65 * (k / 12), { hw, z, tip } = prof(u), alt = k % 2 === 0 ? 1.12 : 0.78;
+      return { z, x: hw * (inn ? 0.58 : 0.80), y: -0.050 * (1 - 0.35 * u) * (1 - 0.62 * tip) + (inn ? 0.012 : 0), dir: [-0.12, -1, -0.08], len: (inn ? 0.022 : 0.036 + 0.026 * Math.sin(u * Math.PI)) * alt, rad: inn ? 0.0075 : 0.0095 };
+    }, 13, true));
+
+    this.jawBone = new THREE.Bone(); this.jawBone.position.set(0, -0.066, 0.02); headBone.add(this.jawBone);
+    this.jawBone.add(this._buildJawMesh());
+    this.jawBone.add(this._buildTeeth((k, inn) => {
+      const u = 0.19 + 0.70 * (k / 11), tip = smoothstep(0.88, 1.0, u);
+      const tEnd = clamp((u - 0.93) / 0.07, 0, 1), endRound = Math.sqrt(Math.max(0.02, 1 - 0.86 * tEnd * tEnd));
+      const hw = (0.242 * (1 - 0.65 * u ** 1.08) + 0.014 * Math.exp(-0.5 * ((u - 0.45) / 0.16) ** 2)) * (1 - 0.56 * tip) * endRound;
+      const alt = k % 2 === 0 ? 1.10 : 0.78;
+      return { z: -0.08 + 1.07 * u, x: hw * (inn ? 0.58 : 0.78), y: 0.022 * (1 - 0.35 * u), dir: [-0.12, 1, -0.08], len: (inn ? 0.020 : 0.032 + 0.024 * Math.sin(u * Math.PI)) * alt, rad: inn ? 0.007 : 0.0085 };
+    }, 12, false));
+
+    const gPos = [], gCol = [], gSi = [], gSw = [], gIdx = [];
+    for (let i = 0; i < 14; i++) {
+      const u = i / 13, z = -0.28 + 0.84 * u, rx = 0.155 * (1 - 0.28 * smoothstep(0.3, 1.0, u)), deep = 1 - smoothstep(0, 0.55, u);
+      for (let j = 0; j < 20; j++) {
+        const a = (j / 20) * Math.PI * 2, sa = Math.sin(a), ca = Math.cos(a);
+        let px = rx * sa; if (u > 0.65 && Math.abs(sa) > 0.5) px *= (1 - 0.15 * (u - 0.65) / 0.35);
+        const py = lerp(0.05 * (1 - 0.3 * u) + 0.04 * ca, -0.02 + 0.04 * ca, smoothstep(0.35, -0.45, ca));
+        gPos.push(px, py - 0.035 * smoothstep(0.35, -0.45, ca) * smoothstep(0.08, 0.35, u), z);
+        gCol.push(lerp(0.38, 0.08, deep), lerp(0.11, 0.03, deep), lerp(0.12, 0.04, deep));
+        const wJ = smoothstep(0.35, -0.45, ca) * smoothstep(0.08, 0.35, u);
+        gSi.push(0, 1, 0, 0); gSw.push(1 - wJ, wJ, 0, 0);
+      }
+    }
+    for (let i = 0; i < 13; i++) for (let j = 0; j < 20; j++) {
+      const jn = (j + 1) % 20, a = i*20+j, b = (i+1)*20+j, c = (i+1)*20+jn, d = i*20+jn;
+      gIdx.push(a, c, b, a, d, c, a, b, c, a, c, d);
+    }
+    const backG = gPos.length / 3; gPos.push(0, -0.02, -0.30); gCol.push(0.05, 0.02, 0.02); gSi.push(0, 1, 0, 0); gSw.push(1, 0, 0, 0);
+    for (let j = 0; j < 20; j++) { gIdx.push(backG, (j + 1) % 20, j, backG, j, (j + 1) % 20); }
+    const gGeo = new THREE.BufferGeometry();
+    gGeo.setAttribute('position', new THREE.Float32BufferAttribute(gPos, 3));
+    gGeo.setAttribute('color', new THREE.Float32BufferAttribute(gCol, 3));
+    gGeo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(gSi, 4));
+    gGeo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(gSw, 4));
+    gGeo.setIndex(gIdx); gGeo.computeVertexNormals();
+    const gMesh = new THREE.SkinnedMesh(gGeo, this.wetMat); gMesh.frustumCulled = false;
+    headBone.add(gMesh); headBone.updateMatrixWorld(true); gMesh.bind(new THREE.Skeleton([headBone, this.jawBone]));
+
+    this.tongueRoot = new THREE.Group(); this.tongueRoot.position.set(0, 0.026, 0.14); this.jawBone.add(this.tongueRoot);
+    this.tongueRoot.add(new THREE.Mesh(this._tube(10, 10, t => ({ x: 0, y: 0.015 * Math.sin(t * Math.PI), z: t * 0.42, r: 0.050 * (1 - 0.32 * t), col: [lerp(0.66, 0.76, t), lerp(0.22, 0.34, t), lerp(0.24, 0.34, t)] })), this.wetMat));
+    this.tongueProngs = [{ x: 0, len: 0.66, up: 0.22, r: 0.036 }, { x: 0.14, len: 0.45, up: 0.16, r: 0.026 }, { x: -0.14, len: 0.45, up: 0.16, r: 0.026 }].map(pd => {
+      const piv = new THREE.Group(); piv.position.set(0, 0.006, 0.38); this.tongueRoot.add(piv);
+      piv.add(new THREE.Mesh(this._tube(14, 10, t => ({ x: pd.x * (t ** 0.85), y: -0.04 * Math.sin(t * Math.PI * 0.7) + pd.up * (t ** 1.9), z: t * pd.len, r: pd.r * (1 - 0.90 * (t ** 1.3)), col: [lerp(0.74, 0.86, t), lerp(0.32, 0.50, t), lerp(0.32, 0.46, t)] })), this.wetMat));
+      return piv;
+    });
+  }
+
+  _buildJawMesh() {
+    const nU = 34, nV = 28, pos = [], col = [], uv = [], idx = [];
+    for (let i = 0; i < nU; i++) {
+      const u = i / (nU - 1), tip = smoothstep(0.88, 1.0, u);
+      const tEnd = clamp((u - 0.93) / 0.07, 0, 1), endRound = Math.sqrt(Math.max(0.02, 1 - 0.86 * tEnd * tEnd));
+      const tipFade = (1 - 0.56 * tip) * endRound;
+      const hw = (0.242 * (1 - 0.65 * u ** 1.08) + 0.014 * Math.exp(-0.5 * ((u - 0.45) / 0.16) ** 2)) * tipFade;
+      const hU = 0.036 * (1 - 0.4 * u) * endRound, hD = -0.115 * (1 - 0.62 * u ** 1.05) * (1 - 0.52 * tip) * endRound;
+      for (let j = 0; j < nV; j++) {
+        const v = (j / nV) * Math.PI * 2, sV = Math.sin(v), cV = Math.cos(v);
+        const yTop = hU * Math.exp(-0.5 * ((Math.abs(sV) - 0.85) / 0.18) ** 2) - 0.035 * (1 - tip) * (1 - Math.abs(sV)) * Math.max(0, cV);
+        const yBot = hD * (Math.max(0, -cV) ** 0.85);
+        const ly = lerp(yBot, yTop, smoothstep(-0.14, 0.14, cV));
+        pos.push(hw * sV, ly, -0.08 + 1.07 * u); uv.push(u * 1.2, j / nV);
+        if (cV > 0.08 && Math.abs(sV) < 0.72) col.push(0.42, 0.14, 0.15);
+        else if (u > 0.30 && Math.abs(sV) > 0.55 && cV > -0.45) { const bt = smoothstep(0.30, 0.65, u); col.push(lerp(0.19, 0.74, bt), lerp(0.21, 0.71, bt), lerp(0.17, 0.63, bt)); }
+        else col.push(0.19, 0.21, 0.17);
+      }
+    }
+    for (let i = 0; i < nU - 1; i++) for (let j = 0; j < nV; j++) { const jn = (j + 1) % nV, a = i*nV+j, b = (i+1)*nV+j, c = (i+1)*nV+jn, d = i*nV+jn; idx.push(a, b, c, a, c, d); }
+    const tipI = pos.length / 3; pos.push(0, -0.010, 0.996); uv.push(1.2, 0.5); col.push(0.74, 0.71, 0.63);
+    for (let j = 0; j < nV; j++) idx.push(tipI, (nU - 1) * nV + ((j + 1) % nV), (nU - 1) * nV + j);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setIndex(idx); g.computeVertexNormals();
+    const m = new THREE.Mesh(g, this.skinMat); m.castShadow = m.receiveShadow = true; return m;
+  }
+
+  _buildTeeth(fn, count, inner) {
+    const pos = [], col = [], idx = [];
+    const cone = (base, dir, len, rad, sgn) => {
+      const d = new THREE.Vector3(dir[0] * sgn, dir[1], dir[2]).normalize();
+      const t1 = new THREE.Vector3().crossVectors(d, Math.abs(d.x) < 0.8 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1)).normalize();
+      const t2 = new THREE.Vector3().crossVectors(d, t1).normalize(), bi = pos.length / 3;
+      for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2, p = base.clone().addScaledVector(t1, rad * Math.cos(a)).addScaledVector(t2, rad * Math.sin(a)); pos.push(p.x, p.y, p.z); col.push(0.74, 0.68, 0.58); }
+      const tp = base.clone().addScaledVector(d, len).add(new THREE.Vector3(0, 0, -0.012)); pos.push(tp.x, tp.y, tp.z); col.push(0.95, 0.92, 0.84);
+      for (let i = 0; i < 6; i++) idx.push(bi + i, bi + ((i + 1) % 6), bi + 6);
+    };
+    for (let k = 0; k < count; k++) {
+      const o = fn(k, false);
+      for (const sgn of [-1, 1]) {
+        cone(new THREE.Vector3(sgn * o.x, o.y, o.z), o.dir, o.len, o.rad, sgn);
+        if (inner && k % 2 === 0) { const n = fn(k, true); cone(new THREE.Vector3(sgn * n.x, n.y, n.z), n.dir, n.len, n.rad, sgn); }
+      }
+    }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.setIndex(idx); g.computeVertexNormals(); return new THREE.Mesh(g, this.toothMat);
+  }
+
+  _tube(nL, nR, fn) {
+    const pos = [], col = [], idx = [];
+    for (let i = 0; i < nL; i++) { const s = fn(i / (nL - 1)); for (let j = 0; j < nR; j++) { const a = (j / nR) * Math.PI * 2; pos.push(s.x + s.r * Math.cos(a), s.y + s.r * 0.75 * Math.sin(a), s.z); col.push(...s.col); } }
+    for (let i = 0; i < nL - 1; i++) for (let j = 0; j < nR; j++) { const jn = (j + 1) % nR, a = i*nR+j, b = (i+1)*nR+j, c = (i+1)*nR+jn, d = i*nR+jn; idx.push(a, c, b, a, d, c); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.setIndex(idx); g.computeVertexNormals(); return g;
+  }
+
+  _boneMat(origin, target, pole) {
+    const yUp = new THREE.Vector3().subVectors(origin, target).normalize();
+    const zP = pole.clone().addScaledVector(yUp, -pole.dot(yUp)); if (zP.lengthSq() < 1e-6) zP.set(0, 0, -1); zP.normalize();
+    const xL = new THREE.Vector3().crossVectors(yUp, zP).normalize(), zO = new THREE.Vector3().crossVectors(xL, yUp).normalize();
+    return new THREE.Matrix4().makeBasis(xL, yUp, zO).setPosition(origin);
+  }
+
+  _solveIK(S, W, pole) {
+    const L1 = this.L1, L2 = this.L2, dVec = new THREE.Vector3().subVectors(W, S), dist = dVec.length();
+    const d = clamp(dist, Math.abs(L1 - L2) + 0.02, (L1 + L2) * 0.99), dir = dist > 1e-6 ? dVec.divideScalar(dist) : new THREE.Vector3(0, -1, 0);
+    const cosA = clamp((L1*L1 + d*d - L2*L2) / (2 * L1 * d), -1, 1), a = L1 * cosA, h = L1 * Math.sqrt(Math.max(0, 1 - cosA * cosA));
+    const perp = pole.clone().addScaledVector(dir, -pole.dot(dir)); if (perp.lengthSq() < 1e-6) perp.set(0, 0, -1).addScaledVector(dir, dir.z); perp.normalize();
+    return { E: S.clone().addScaledVector(dir, a).addScaledVector(perp, h), W: S.clone().addScaledVector(dir, d), perp };
+  }
+
+  _buildLimbRig(side, chestBone, chestW) {
+    const shLocal = new THREE.Vector3(side * 0.44, -0.11, 0), S0 = chestW.clone().add(shLocal), W0 = new THREE.Vector3(side * 0.82, this.wristY, 0.06);
+    const ik = this._solveIK(S0, W0, new THREE.Vector3(side * 0.68, 0.44, -0.76)), E0 = ik.E;
+    const qU0 = new THREE.Quaternion().setFromRotationMatrix(this._boneMat(S0, E0, ik.perp));
+    const qF0 = new THREE.Quaternion().setFromRotationMatrix(this._boneMat(E0, W0, ik.perp));
+    const shB = new THREE.Bone(); shB.position.copy(shLocal); shB.quaternion.copy(qU0); chestBone.add(shB);
+    const elB = new THREE.Bone(); elB.position.set(0, -this.L1, 0); elB.quaternion.copy(qU0.clone().invert().multiply(qF0)); shB.add(elB);
+    const wrB = new THREE.Bone(); wrB.position.set(0, -this.L2, 0); wrB.quaternion.copy(qF0.clone().invert()); elB.add(wrB);
+
+    const spurPiv = new THREE.Group(); elB.add(spurPiv);
+    const spurMesh = new THREE.Mesh(this._tube(16, 12, t => ({ x: 0, y: -0.06 + 0.34 * t + 0.08 * t * t, z: -0.04 + 0.42 * t, r: 0.105 * ((1 - t) ** 1.25) + 0.003, col: [lerp(0.21, 0.78, smoothstep(0.25, 0.75, t)), lerp(0.23, 0.75, smoothstep(0.25, 0.75, t)), lerp(0.19, 0.66, smoothstep(0.25, 0.75, t))] })), this.skinMat);
+    spurMesh.castShadow = true; spurPiv.add(spurMesh);
+
+    // Articulated arched & knuckled digits emerging seamlessly from the wrist metacarpal columns + stout curved claws
+    const digits = [
+      { ang: -0.76 * side, len: 0.36, rad: 0.048, xo: -0.088, yo: -0.042, zo: 0.098, archH: 0.022 },
+      { ang: -0.22 * side, len: 0.46, rad: 0.064, xo: -0.040, yo: -0.058, zo: 0.165, archH: 0.025 },
+      { ang:  0.14 * side, len: 0.50, rad: 0.068, xo:  0.036, yo: -0.054, zo: 0.172, archH: 0.027 },
+      { ang:  0.56 * side, len: 0.41, rad: 0.054, xo:  0.095, yo: -0.072, zo: 0.140, archH: 0.020 },
+    ].map(ds => {
+      const dp = new THREE.Group(); dp.position.set(side * ds.xo, ds.yo, ds.zo); dp.rotation.y = ds.ang; wrB.add(dp);
+
+      const fNl = 28, fNr = 14, fPos = [], fCol = [], fUv = [], fIdx = [];
+      const skinLen = ds.len * 0.78, zStart = -0.060;
+      const targetYEnd = 0.034 - (this.wristY + ds.yo);
+      const yFloor = 0.002 - (this.wristY + ds.yo);
+      for (let i = 0; i < fNl; i++) {
+        const t = i / (fNl - 1);
+        const zc = lerp(zStart, skinLen, t);
+        const yc = targetYEnd * smoothstep(0.0, 0.90, t) + ds.archH * Math.sin(Math.PI * (t ** 0.82));
+        const k1 = 0.011 * Math.exp(-0.5 * ((t - 0.28) / 0.085) ** 2);
+        const k2 = 0.008 * Math.exp(-0.5 * ((t - 0.60) / 0.085) ** 2);
+        const toeBulb = 0.012 * Math.exp(-0.5 * ((t - 0.85) / 0.095) ** 2);
+        const scuteBump = 0.004 * Math.sin(t * Math.PI * 14) * smoothstep(0.08, 0.24, t) * (1 - smoothstep(0.84, 0.98, t));
+        const webFlare = 1 + 0.22 * Math.exp(-0.5 * ((t - 0.10) / 0.10) ** 2);
+        const rad = ds.rad * (1 - 0.30 * t) + (k1 + k2) * 0.55 + toeBulb * 0.88;
+        const scute = 0.5 + 0.5 * Math.sin(t * Math.PI * 14);
+        const sheath = smoothstep(0.84, 1.0, t);
+        for (let j = 0; j <= fNr; j++) {
+          const a = ((j % fNr) / fNr) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+          const rx = rad * webFlare, ry = rad * (sa > 0 ? 0.92 : 0.72);
+          const py = Math.max(yFloor, yc + ry * sa + (k1 + k2 + scuteBump) * Math.max(0, sa));
+          fPos.push(rx * ca, py, zc);
+          fUv.push(t * 1.1, (j / fNr) * (2 / 3));
+          let cr = lerp(0.21, 0.38, scute * 0.45 * Math.max(0, sa)), cg = lerp(0.22, 0.37, scute * 0.45 * Math.max(0, sa)), cb = lerp(0.18, 0.30, scute * 0.45 * Math.max(0, sa));
+          if (sa < 0) { cr = lerp(cr, 0.14, -0.45 * sa); cg = lerp(cg, 0.15, -0.45 * sa); cb = lerp(cb, 0.13, -0.45 * sa); }
+          fCol.push(lerp(cr, 0.17, sheath), lerp(cg, 0.17, sheath), lerp(cb, 0.14, sheath));
+        }
+      }
+      const fStride = fNr + 1;
+      for (let i = 0; i < fNl - 1; i++) for (let j = 0; j < fNr; j++) {
+        const a = i * fStride + j, b = (i + 1) * fStride + j, c = (i + 1) * fStride + (j + 1), d = i * fStride + (j + 1);
+        fIdx.push(a, c, b, a, d, c);
+      }
+      const fTip = fPos.length / 3; fPos.push(0, targetYEnd, skinLen + 0.008); fCol.push(0.17, 0.17, 0.14); fUv.push(1.1, 1 / 3);
+      const fLast = (fNl - 1) * fStride;
+      for (let j = 0; j < fNr; j++) fIdx.push(fTip, fLast + j, fLast + j + 1);
+      const fGeo = new THREE.BufferGeometry();
+      fGeo.setAttribute('position', new THREE.Float32BufferAttribute(fPos, 3));
+      fGeo.setAttribute('color', new THREE.Float32BufferAttribute(fCol, 3));
+      fGeo.setAttribute('uv', new THREE.Float32BufferAttribute(fUv, 2));
+      fGeo.setIndex(fIdx); fGeo.computeVertexNormals();
+      const fNorm = fGeo.getAttribute('normal');
+      for (let i = 0; i < fNl; i++) {
+        const i0 = i * fStride, i1 = i0 + fNr;
+        const nx = fNorm.getX(i0) + fNorm.getX(i1), ny = fNorm.getY(i0) + fNorm.getY(i1), nz = fNorm.getZ(i0) + fNorm.getZ(i1);
+        const l = Math.hypot(nx, ny, nz) || 1e-8;
+        fNorm.setXYZ(i0, nx / l, ny / l, nz / l); fNorm.setXYZ(i1, nx / l, ny / l, nz / l);
+      }
+      const fm = new THREE.Mesh(fGeo, this.skinMat); fm.castShadow = fm.receiveShadow = true; dp.add(fm);
+
+      // Stout downward-curved conical/pyramidal keratin talon emerging from the swollen toe bulb
+      const cNl = 14, cNr = 12, cPos = [], cCol = [], cIdx = [];
+      const cStart = ds.len * 0.72, cLen = ds.len * 0.27;
+      const yClawTip = 0.003 - (this.wristY + ds.yo);
+      for (let i = 0; i < cNl; i++) {
+        const t = i / (cNl - 1);
+        const zc = cStart + t * cLen;
+        const yc = lerp(targetYEnd, yClawTip, t ** 1.35) + 0.005 * Math.sin(t * Math.PI);
+        const cr = ds.rad * 0.64 * (1 - 0.94 * (t ** 1.12)) + 0.002;
+        const colR = lerp(0.25, 0.10, smoothstep(0.1, 0.85, t));
+        const colG = lerp(0.22, 0.09, smoothstep(0.1, 0.85, t));
+        const colB = lerp(0.17, 0.07, smoothstep(0.1, 0.85, t));
+        for (let j = 0; j < cNr; j++) {
+          const a = (j / cNr) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+          const ridgeY = sa > 0 ? 1.10 * sa : 0.62 * sa;
+          cPos.push(cr * 0.80 * ca, yc + cr * ridgeY, zc);
+          cCol.push(colR, colG, colB);
+        }
+      }
+      for (let i = 0; i < cNl - 1; i++) for (let j = 0; j < cNr; j++) {
+        const jn = (j + 1) % cNr, a = i * cNr + j, b = (i + 1) * cNr + j, c = (i + 1) * cNr + jn, d = i * cNr + jn;
+        cIdx.push(a, c, b, a, d, c);
+      }
+      const cTip = cPos.length / 3; cPos.push(0, yClawTip, cStart + cLen + 0.006); cCol.push(0.09, 0.08, 0.06);
+      const cLast = (cNl - 1) * cNr;
+      for (let j = 0; j < cNr; j++) cIdx.push(cTip, cLast + j, cLast + ((j + 1) % cNr));
+      const cGeo = new THREE.BufferGeometry();
+      cGeo.setAttribute('position', new THREE.Float32BufferAttribute(cPos, 3));
+      cGeo.setAttribute('color', new THREE.Float32BufferAttribute(cCol, 3));
+      cGeo.setIndex(cIdx); cGeo.computeVertexNormals();
+      const cm = new THREE.Mesh(cGeo, this.clawMat); cm.castShadow = true; dp.add(cm);
+
+      return dp;
+    });
+    return { side, shLocal, shB, elB, wrB, spurPiv, digits };
+  }
+
+  _samplePose(mode, t) {
+    const wy = this.wristY;
+    const p = {
+      pOff: new THREE.Vector3(), pRot: new THREE.Euler(0, 0, 0, 'YXZ'), chRot: new THREE.Vector3(),
+      n1Rot: new THREE.Vector3(), n2Rot: new THREE.Vector3(), hRot: new THREE.Vector3(),
+      jaw: 0.20, tOut: 0, tWhip: 0, tP: Array(6).fill(0), tY: Array(6).fill(0), tR: Array(6).fill(0),
+      wL: new THREE.Vector3(0.82, wy, 0.06), wR: new THREE.Vector3(-0.82, wy, 0.06), swL: 0, swR: 0,
+    };
+    if (mode === 'idle') {
+      const ph = t * 1.65;
+      p.pOff.y = 0.032 * Math.sin(ph); p.chRot.x = 0.03 * Math.sin(ph - 0.5);
+      p.n1Rot.y = 0.11 * Math.sin(t * 0.72); p.hRot.set(-0.04 * Math.cos(t * 1.1), 0.14 * Math.sin(t * 0.72 - 0.45), 0);
+      p.jaw = 0.18 + 0.07 * Math.sin(ph); p.tOut = 0.08 + 0.06 * Math.sin(t * 1.8);
+      for (let i = 0; i < 6; i++) p.tY[i] = 0.07 * Math.sin(t * 1.2 - i * 0.55);
+    } else if (mode === 'walk') {
+      const phL = t * 0.90 * Math.PI * 2, phR = phL + Math.PI;
+      const foot = (ph, s) => {
+        const u = ((ph % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) / (Math.PI * 2);
+        if (u < 0.58) { const st = u / 0.58; return [new THREE.Vector3(s * (0.82 + 0.04 * Math.sin(st * Math.PI)), wy, lerp(0.62, -0.46, st)), 0]; }
+        const sw = (u - 0.58) / 0.42; return [new THREE.Vector3(s * (0.82 + 0.10 * Math.sin(sw * Math.PI)), wy + 0.46 * (Math.sin(sw * Math.PI) ** 0.85), lerp(-0.46, 0.62, 0.5 - 0.5 * Math.cos(sw * Math.PI))), Math.sin(sw * Math.PI)];
+      };
+      [p.wL, p.swL] = foot(phL, 1); [p.wR, p.swR] = foot(phR, -1);
+      p.pOff.set(0.09 * Math.sin(phL), 0.075 * Math.cos(2 * phL) - 0.035, 0.03 * Math.sin(2 * phL));
+      p.pRot.set(0.03 * Math.sin(2 * phL), -0.10 * Math.cos(phL), 0.09 * Math.sin(phL), 'YXZ');
+      p.chRot.set(0.05 * Math.sin(2 * phL), 0.16 * Math.cos(phL), -0.05 * Math.sin(phL));
+      p.n1Rot.set(0.04 * Math.sin(2 * phL + 0.4), -0.08 * Math.cos(phL), 0);
+      p.hRot.set(-0.07 * Math.sin(2 * phL + 0.6), -0.05 * Math.cos(phL), 0);
+      p.jaw = 0.24 + 0.08 * Math.sin(2 * phL); p.tOut = 0.10 + 0.05 * Math.sin(2 * phL);
+      for (let i = 0; i < 6; i++) { p.tY[i] = 0.16 * Math.sin(phL - i * 0.72 + 0.4); p.tR[i] = 0.04 * Math.cos(phL - i * 0.6); p.tP[i] = 0.015 * Math.sin(2 * phL - i * 0.5); }
+    } else if (mode === 'run') {
+      const phL = t * 2.10 * Math.PI * 2, phR = phL + Math.PI * 0.74, bPh = phL - 0.05 * Math.PI;
+      const foot = (ph, s) => {
+        const u = ((ph % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) / (Math.PI * 2);
+        if (u < 0.42) return [new THREE.Vector3(s * 0.80, wy, lerp(0.84, -0.54, u / 0.42)), 0];
+        const sw = (u - 0.42) / 0.58, lift = Math.sin(sw * Math.PI);
+        return [new THREE.Vector3(s * (0.80 + 0.12 * lift), wy + 0.48 * (lift ** 0.85), lerp(-0.54, 0.84, 0.5 - 0.5 * Math.cos(sw * Math.PI))), 0.42 * lift * smoothstep(0.15, 0.65, lift)];
+      };
+      [p.wL, p.swL] = foot(phL, 1); [p.wR, p.swR] = foot(phR, -1);
+      p.pOff.set(0.07 * Math.sin(phL), -0.03 - 0.08 * Math.cos(bPh), 0.10 * Math.sin(bPh));
+      p.pRot.set(0.06 + 0.08 * Math.sin(bPh), 0.08 * Math.sin(phL), 0.05 * Math.cos(phL), 'YXZ');
+      p.chRot.set(-0.07 * Math.sin(bPh), -0.11 * Math.sin(phL), 0);
+      p.n1Rot.set(-0.07 - 0.06 * Math.sin(bPh), 0, 0); p.hRot.set(0.08 * Math.sin(bPh), 0, 0);
+      p.jaw = 0.40 + 0.14 * Math.sin(bPh); p.tOut = 0.18 + 0.10 * Math.sin(bPh);
+      for (let i = 0; i < 6; i++) { p.tY[i] = 0.22 * Math.sin(phL - i * 0.85); p.tP[i] = -0.05 * Math.cos(bPh - i * 0.6); }
+    } else if (mode === 'scream') {
+      const u = (t % 3.4) / 3.4, rear = Math.sin(clamp((u - 0.04) / 0.84, 0, 1) * Math.PI) ** 0.65;
+      const trm = Math.sin(t * 50) * rear, swp = Math.sin(u * Math.PI * 3) * rear;
+      p.wL.set(0.92, wy, 0.22); p.wR.set(-0.92, wy, 0.22);
+      p.pOff.set(0, 0.14 * rear, -0.14 * rear); p.pRot.set(-0.28 * rear, 0.06 * swp, 0.04 * swp, 'YXZ');
+      p.chRot.set(-0.20 * rear + 0.02 * trm, 0.10 * swp, 0);
+      p.n1Rot.set(-0.16 * rear, 0.16 * swp, 0); p.n2Rot.set(-0.10 * rear, 0.12 * swp, 0);
+      p.hRot.set(-0.22 * rear + 0.03 * trm, 0.12 * swp, 0.08 * swp);
+      p.jaw = 0.20 + 0.92 * rear + 0.06 * trm;
+      p.tOut = 0.12 + 0.88 * smoothstep(0.14, 0.58, rear); p.tWhip = Math.sin(t * 14) * p.tOut;
+      for (let i = 0; i < 6; i++) { p.tP[i] = 0.075 * rear + 0.03 * Math.sin(t * 4.5 - i * 0.7) * rear; p.tY[i] = 0.19 * Math.sin(t * 3.8 - i * 0.65) * (0.3 + 0.7 * rear); p.tR[i] = 0.06 * Math.cos(t * 3.8 - i * 0.6); }
+    }
+    return p;
+  }
+
+  update(dt) {
+    this.time += dt * this.speed;
+    if (this.blend < 1) this.blend = Math.min(1, this.blend + dt * 4);
+    const cur = this._samplePose(this.targetAnim, this.time);
+    let pose = cur;
+    if (this.blend < 1 && this.prevPose) {
+      const a = smoothstep(0, 1, this.blend), pr = this.prevPose;
+      pose = {
+        pOff: pr.pOff.clone().lerp(cur.pOff, a),
+        pRot: new THREE.Euler(lerp(pr.pRot.x, cur.pRot.x, a), lerp(pr.pRot.y, cur.pRot.y, a), lerp(pr.pRot.z, cur.pRot.z, a), 'YXZ'),
+        chRot: pr.chRot.clone().lerp(cur.chRot, a), n1Rot: pr.n1Rot.clone().lerp(cur.n1Rot, a),
+        n2Rot: pr.n2Rot.clone().lerp(cur.n2Rot, a), hRot: pr.hRot.clone().lerp(cur.hRot, a),
+        jaw: lerp(pr.jaw, cur.jaw, a), tOut: lerp(pr.tOut, cur.tOut, a), tWhip: lerp(pr.tWhip, cur.tWhip, a),
+        tP: pr.tP.map((v, i) => lerp(v, cur.tP[i], a)), tY: pr.tY.map((v, i) => lerp(v, cur.tY[i], a)), tR: pr.tR.map((v, i) => lerp(v, cur.tR[i], a)),
+        wL: pr.wL.clone().lerp(cur.wL, a), wR: pr.wR.clone().lerp(cur.wR, a), swL: lerp(pr.swL, cur.swL, a), swR: lerp(pr.swR, cur.swR, a),
+      };
+    }
+    if (this.targetAnim === 'scream' && pose.tOut > 0.45 && this.onScreamPeak) this.onScreamPeak();
+
+    this.bones.pelvis.position.copy(this.pelvisRest).add(pose.pOff);
+    this.bones.pelvis.rotation.copy(pose.pRot);
+    this.bones.chest.rotation.set(pose.chRot.x, pose.chRot.y, pose.chRot.z);
+    this.bones.neck1.rotation.set(pose.n1Rot.x, pose.n1Rot.y, pose.n1Rot.z);
+    this.bones.neck2.rotation.set(pose.n2Rot.x, pose.n2Rot.y, pose.n2Rot.z);
+    this.bones.headBase.rotation.set(pose.hRot.x, pose.hRot.y, pose.hRot.z);
+
+    this.jawBone.rotation.x = pose.jaw;
+    const tE = pose.tOut;
+    this.tongueRoot.visible = true;
+    this.tongueRoot.position.set(0, 0.024, 0.06 + 0.34 * tE);
+    this.tongueRoot.scale.set(0.85 + 0.15 * tE, 0.85 + 0.15 * tE, 0.62 + 0.58 * tE);
+    this.tongueRoot.rotation.set(-0.10 - 0.28 * tE + 0.08 * pose.tWhip, 0.14 * pose.tWhip, 0);
+    this.tongueProngs.forEach((p, idx) => {
+      p.rotation.x = -0.10 * tE + 0.10 * Math.sin(this.time * 14 + idx * 1.4) * (0.15 + tE);
+      p.rotation.y = (idx === 0 ? 0.08 : (idx === 1 ? 0.12 : -0.12)) * tE + 0.10 * pose.tWhip;
+    });
+
+    const tailOrder = ['tail1','tail2','tail3','tail4','tail5','tail6'];
+    tailOrder.forEach((n, i) => this.bones[n].rotation.set(pose.tP[5 - i], pose.tY[5 - i], pose.tR[5 - i], 'YXZ'));
+    this.group.updateMatrixWorld(true);
+    const tmp = new THREE.Vector3();
+    for (let i = 1; i < tailOrder.length; i++) {
+      this.bones[tailOrder[i]].getWorldPosition(tmp);
+      if (tmp.y < 0.16) { this.bones[tailOrder[i - 1]].rotation.x += Math.min(0.55, (0.16 - tmp.y) * 0.85); this.group.updateMatrixWorld(true); }
+    }
+
+    const chP = new THREE.Vector3(), chQ = new THREE.Quaternion();
+    this.bones.chest.getWorldPosition(chP); this.bones.chest.getWorldQuaternion(chQ);
+    const doIK = (limb, wTgt, sw) => {
+      const S = limb.shLocal.clone().applyQuaternion(chQ).add(chP);
+      const pole = new THREE.Vector3(limb.side * 0.68, 0.44, -0.76).applyAxisAngle(new THREE.Vector3(0, 1, 0), pose.pRot.y);
+      const { E, W, perp } = this._solveIK(S, wTgt, pole);
+      const qU = new THREE.Quaternion().setFromRotationMatrix(this._boneMat(S, E, perp));
+      const qF = new THREE.Quaternion().setFromRotationMatrix(this._boneMat(E, W, perp));
+      limb.shB.quaternion.copy(chQ.clone().invert().multiply(qU));
+      limb.elB.quaternion.copy(qU.clone().invert().multiply(qF));
+      const qW = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.45 * sw, pose.pRot.y * 0.6, 0, 'YXZ'));
+      limb.wrB.quaternion.copy(qF.clone().invert().multiply(qW));
+      limb.spurPiv.quaternion.copy(qF.clone().invert().multiply(qU.clone().slerp(qF, 0.42)));
+      limb.digits.forEach(d => d.rotation.x = 0.40 * sw);
+    };
+    doIK(this.limbs.L, pose.wL, pose.swL); doIK(this.limbs.R, pose.wR, pose.swR);
+  }
+}
+
+const wrap = document.getElementById('canvas-wrap');
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.06;
+wrap.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf1f4f8); scene.fog = new THREE.Fog(0xf1f4f8, 22, 48);
+const getFov = (asp) => asp < 1 ? clamp(42 / Math.pow(asp, 0.52), 42, 68) : 42;
+const camera = new THREE.PerspectiveCamera(getFov(window.innerWidth / window.innerHeight), window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(6.4, 3.1, 4.6);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 1.35, -1.45); controls.enableDamping = true; controls.dampingFactor = 0.06;
+controls.minDistance = 2.4; controls.maxDistance = 22; controls.maxPolarAngle = Math.PI * 0.52;
+controls.autoRotateSpeed = 1.6; controls.update();
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0xdce3ec, 0.92));
+const key = new THREE.DirectionalLight(0xfffaf2, 2.05); key.position.set(6.5, 11, 5.5); key.castShadow = true;
+key.shadow.mapSize.set(1024, 1024); key.shadow.camera.near = 1; key.shadow.camera.far = 30;
+key.shadow.camera.left = key.shadow.camera.bottom = -8.5; key.shadow.camera.right = key.shadow.camera.top = 8.5;
+key.shadow.bias = -0.0005; key.shadow.normalBias = 0.02; scene.add(key);
+const fill = new THREE.DirectionalLight(0xe6eef8, 0.78); fill.position.set(-7, 4.5, -5); scene.add(fill);
+const rim = new THREE.DirectionalLight(0xffffff, 0.65); rim.position.set(0, 4, -9.5); scene.add(rim);
+const bounce = new THREE.DirectionalLight(0xffffff, 0.42); bounce.position.set(0, -4, 2); scene.add(bounce);
+
+const platGrp = new THREE.Group(); platGrp.position.set(0, 0, -1.6); scene.add(platGrp);
+const platR = 7.8, platH = 0.36;
+const platMesh = new THREE.Mesh(
+  new THREE.CylinderGeometry(platR, platR + 0.16, platH, 80),
+  [new THREE.MeshStandardMaterial({ color: 0xe6eaf0, roughness: 0.55 }), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.72 }), new THREE.MeshStandardMaterial({ color: 0xe6eaf0 })]
+);
+platMesh.position.y = -platH / 2; platMesh.receiveShadow = platMesh.castShadow = true; platGrp.add(platMesh);
+const rimGeo = new THREE.RingGeometry(platR - 0.08, platR, 80); rimGeo.rotateX(-Math.PI / 2);
+const rimMesh = new THREE.Mesh(rimGeo, new THREE.MeshBasicMaterial({ color: 0xd5dce4 })); rimMesh.position.y = 0.002; platGrp.add(rimMesh);
+
+const ringsGrp = new THREE.Group();
+[1.8, 3.6, 5.4, 7.2].forEach(r => { const rg = new THREE.RingGeometry(r - 0.015, r + 0.015, 80); rg.rotateX(-Math.PI / 2); const m = new THREE.Mesh(rg, new THREE.MeshBasicMaterial({ color: 0xe2e7ee })); m.position.y = 0.003; ringsGrp.add(m); });
+platGrp.add(ringsGrp);
+
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(140, 140).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xeef2f6, roughness: 0.92 }));
+floor.position.y = -platH; floor.receiveShadow = true; scene.add(floor);
+
+const skullcrawler = new SkullcrawlerModel(); scene.add(skullcrawler.group);
+const roar = new RoarSynth(); skullcrawler.onScreamPeak = () => roar.trigger();
+
+document.querySelectorAll('.anim-btn').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.anim-btn').forEach(x => x.classList.remove('active')); b.classList.add('active');
+  skullcrawler.setAnimation(b.dataset.anim);
+}));
+const spSlider = document.getElementById('speed-slider'), spVal = document.getElementById('speed-val');
+spSlider.addEventListener('input', () => { skullcrawler.speed = parseFloat(spSlider.value); spVal.textContent = skullcrawler.speed.toFixed(1) + 'x'; });
+
+const camPresets = {
+  hero:  { p: [6.4, 3.1, 4.6],   t: [0, 1.35, -1.45] },
+  front: { p: [0, 2.1, 6.8],     t: [0, 1.45,  0.20] },
+  side:  { p: [9.2, 2.2, -1.8],  t: [0, 1.25, -1.80] },
+  back:  { p: [-2.6, 2.6, -10.4],t: [0, 1.20, -2.00] },
+  top:   { p: [0, 12.2, -1.6],   t: [0, 0.50, -1.70] },
+};
+let tween = null;
+document.querySelectorAll('[data-cam]').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('[data-cam]').forEach(x => x.classList.remove('active')); b.classList.add('active');
+  const c = camPresets[b.dataset.cam];
+  tween = { t: 0, fp: camera.position.clone(), tp: new THREE.Vector3(...c.p), ft: controls.target.clone(), tt: new THREE.Vector3(...c.t) };
+}));
+
+const btnSpin = document.getElementById('btn-turntable');
+btnSpin.addEventListener('click', () => { controls.autoRotate = !controls.autoRotate; btnSpin.classList.toggle('active', controls.autoRotate); });
+const btnRings = document.getElementById('btn-rings');
+btnRings.addEventListener('click', () => { ringsGrp.visible = !ringsGrp.visible; btnRings.classList.toggle('active', ringsGrp.visible); });
+const btnSound = document.getElementById('btn-sound');
+btnSound.addEventListener('click', () => { roar.setEnabled(!roar.on); btnSound.classList.toggle('active', roar.on); if (roar.on && skullcrawler.targetAnim === 'scream') roar.trigger(); });
+const btnInfo = document.getElementById('btn-info'), drawer = document.getElementById('info-drawer');
+btnInfo.addEventListener('click', () => { btnInfo.classList.toggle('active', drawer.classList.toggle('open')); });
+
+window.addEventListener('resize', () => {
+  const asp = window.innerWidth / window.innerHeight;
+  camera.aspect = asp; camera.fov = getFov(asp); camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+let last = performance.now();
+(function loop(now) {
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  skullcrawler.update(dt);
+  if (tween) {
+    tween.t = Math.min(1, tween.t + dt * 2.6);
+    const s = tween.t * tween.t * (3 - 2 * tween.t);
+    camera.position.lerpVectors(tween.fp, tween.tp, s);
+    controls.target.lerpVectors(tween.ft, tween.tt, s);
+    if (tween.t >= 1) tween = null;
+  }
+  controls.update(); renderer.render(scene, camera);
+})(last);
+</script>
+</body>
+</html>
